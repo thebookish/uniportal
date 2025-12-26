@@ -55,7 +55,7 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/30">
           <Sparkles className="w-4 md:w-5 h-4 md:h-5 text-orange-400" />
-          <span className="text-xs md:text-sm font-medium text-orange-400">Risk AI Active • 94% Accuracy</span>
+          <span className="text-xs md:text-sm font-medium text-orange-400">Risk AI Active • {students.length} Monitored</span>
         </div>
       </div>
 

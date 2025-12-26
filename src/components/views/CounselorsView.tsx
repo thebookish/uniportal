@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Users, Star, Clock, TrendingUp, Loader2, UserPlus, X, Edit, Trash2 } from 'lucide-react';
+import { Users, Star, Clock, TrendingUp, Loader2, UserPlus, X, UserMinus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useStudents } from '@/hooks/useStudents';
 
 export function CounselorsView() {
   const [counselors, setCounselors] = useState<any[]>([]);
@@ -12,11 +13,15 @@ export function CounselorsView() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showStudentsModal, setShowStudentsModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedCounselor, setSelectedCounselor] = useState<any>(null);
   const [counselorStudents, setCounselorStudents] = useState<any[]>([]);
+  const [unassignedStudents, setUnassignedStudents] = useState<any[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [targetCounselorId, setTargetCounselorId] = useState('');
   const [reassigning, setReassigning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -133,23 +138,92 @@ export function CounselorsView() {
     }
   }
 
-  async function handleInviteCounselor() {
+  async function handleAddCounselor() {
     if (!formData.name || !formData.email) return;
     setSaving(true);
     try {
-      await supabase.from('team_invitations').insert({
+      // Create user directly as a counselor
+      const { error } = await supabase.from('users').insert({
+        name: formData.name,
         email: formData.email,
         role: 'admissions',
-        status: 'pending'
+        auth_id: crypto.randomUUID() // Placeholder auth_id
       });
+      
+      if (error) throw error;
+      
       setShowAddModal(false);
       setFormData({ name: '', email: '', capacity: 50 });
-      alert('Invitation sent to ' + formData.email);
-    } catch (error) {
-      console.error('Error inviting counselor:', error);
+      fetchCounselors();
+      alert('Counselor added successfully!');
+    } catch (error: any) {
+      console.error('Error adding counselor:', error);
+      alert(error.message || 'Error adding counselor');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDeleteCounselor(counselorId: string) {
+    if (!confirm('Are you sure you want to remove this counselor? Their students will be unassigned.')) return;
+    setDeleting(counselorId);
+    try {
+      // First unassign all students
+      await supabase
+        .from('students')
+        .update({ counselor_id: null })
+        .eq('counselor_id', counselorId);
+      
+      // Then delete the counselor
+      await supabase.from('users').delete().eq('id', counselorId);
+      fetchCounselors();
+    } catch (error) {
+      console.error('Error deleting counselor:', error);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  async function openAssignModal(counselor: any) {
+    setSelectedCounselor(counselor);
+    setSelectedStudentIds([]);
+    
+    // Fetch unassigned students
+    const { data } = await supabase
+      .from('students')
+      .select('*')
+      .is('counselor_id', null)
+      .order('created_at', { ascending: false });
+    
+    setUnassignedStudents(data || []);
+    setShowAssignModal(true);
+  }
+
+  async function handleAssignStudents() {
+    if (selectedStudentIds.length === 0 || !selectedCounselor) return;
+    setReassigning(true);
+    try {
+      await supabase
+        .from('students')
+        .update({ counselor_id: selectedCounselor.id })
+        .in('id', selectedStudentIds);
+      
+      setShowAssignModal(false);
+      setSelectedStudentIds([]);
+      fetchCounselors();
+    } catch (error) {
+      console.error('Error assigning students:', error);
+    } finally {
+      setReassigning(false);
+    }
+  }
+
+  function toggleStudentSelection(studentId: string) {
+    setSelectedStudentIds(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
   }
 
   const getWorkloadColor = (assigned: number, capacity: number) => {
@@ -168,7 +242,7 @@ export function CounselorsView() {
         </div>
         <Button onClick={() => setShowAddModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
           <UserPlus className="w-4 h-4 mr-2" />
-          Invite Counselor
+          Add Counselor
         </Button>
       </div>
 
@@ -176,7 +250,7 @@ export function CounselorsView() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass-card w-full max-w-md">
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Invite Counselor</h2>
+              <h2 className="text-lg font-bold text-white">Add Counselor</h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-white/5 rounded-lg">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
@@ -201,7 +275,16 @@ export function CounselorsView() {
                   className="bg-white/5 border-white/10 text-white"
                 />
               </div>
-              <p className="text-xs text-gray-500">An invitation email will be sent to this address.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Capacity</label>
+                <Input
+                  type="number"
+                  value={formData.capacity}
+                  onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 50 })}
+                  placeholder="50"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
               <div className="flex items-center gap-3 pt-4">
                 <Button
                   variant="outline"
@@ -211,12 +294,12 @@ export function CounselorsView() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleInviteCounselor}
+                  onClick={handleAddCounselor}
                   disabled={saving || !formData.name || !formData.email}
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Send Invitation
+                  Add Counselor
                 </Button>
               </div>
             </div>
@@ -346,15 +429,33 @@ export function CounselorsView() {
                   className="flex-1 border-white/10 hover:bg-white/5"
                   onClick={() => viewCounselorStudents(counselor.id)}
                 >
-                  View Students ({counselor.assignedStudents})
+                  Students ({counselor.assignedStudents})
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
                   className="flex-1 border-white/10 hover:bg-white/5"
+                  onClick={() => openAssignModal(counselor)}
+                >
+                  <UserPlus className="w-3 h-3 mr-1" />
+                  Assign
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-white/10 hover:bg-white/5"
                   onClick={() => openReassignModal(counselor)}
                 >
-                  Reassign
+                  <RefreshCw className="w-3 h-3" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-red-500/30 hover:bg-red-500/10 text-red-400"
+                  onClick={() => handleDeleteCounselor(counselor.id)}
+                  disabled={deleting === counselor.id}
+                >
+                  {deleting === counselor.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserMinus className="w-3 h-3" />}
                 </Button>
               </div>
             </div>
@@ -439,6 +540,80 @@ export function CounselorsView() {
                   Reassign All
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-2xl max-h-[80vh] overflow-auto">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#0A0E14]">
+              <h2 className="text-lg font-bold text-white">Assign Students to {selectedCounselor?.name}</h2>
+              <button onClick={() => setShowAssignModal(false)} className="p-2 hover:bg-white/5 rounded-lg">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-4">
+              {unassignedStudents.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No unassigned students available</p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-400 mb-4">Select students to assign ({selectedStudentIds.length} selected)</p>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {unassignedStudents.map((student) => (
+                      <div 
+                        key={student.id} 
+                        onClick={() => toggleStudentSelection(student.id)}
+                        className={cn(
+                          "p-3 rounded-lg flex items-center justify-between cursor-pointer transition-all",
+                          selectedStudentIds.includes(student.id) 
+                            ? "bg-orange-500/10 border border-orange-500/30" 
+                            : "bg-white/5 border border-transparent hover:bg-white/10"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedStudentIds.includes(student.id)}
+                            onChange={() => toggleStudentSelection(student.id)}
+                            className="rounded border-white/20"
+                          />
+                          <div>
+                            <p className="font-medium text-white">{student.name}</p>
+                            <p className="text-sm text-gray-400">{student.email} • {student.stage}</p>
+                          </div>
+                        </div>
+                        <Badge className={cn(
+                          "text-xs",
+                          student.risk_score >= 70 ? "bg-red-500/10 text-red-400 border-red-500/30" :
+                          student.risk_score >= 40 ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                          "bg-green-500/10 text-green-400 border-green-500/30"
+                        )}>
+                          Risk: {student.risk_score}%
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-3 pt-4 mt-4 border-t border-white/10">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAssignModal(false)}
+                      className="flex-1 border-white/10 hover:bg-white/5"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleAssignStudents}
+                      disabled={selectedStudentIds.length === 0 || reassigning}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                      {reassigning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Assign {selectedStudentIds.length} Students
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

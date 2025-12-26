@@ -14,23 +14,22 @@ Deno.serve(async (req) => {
     const { message, conversationHistory } = await req.json();
     
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        JSON.stringify({ error: 'Database configuration missing' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_KEY') ?? ''
-    );
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch relevant data from database
     const [studentsRes, alertsRes, programsRes] = await Promise.all([
-      supabaseClient.from('students').select('id, name, email, stage, engagement_score, risk_score').limit(100),
-      supabaseClient.from('ai_alerts').select('*').eq('read', false).limit(20),
-      supabaseClient.from('programs').select('id, name, department, enrolled, capacity').limit(20)
+      supabaseClient.from('students').select('id, name, email, stage, engagement_score, risk_score, country, last_activity'),
+      supabaseClient.from('ai_alerts').select('*').eq('read', false).order('created_at', { ascending: false }).limit(20),
+      supabaseClient.from('programs').select('id, name, department, enrolled, capacity')
     ]);
 
     const students = studentsRes.data || [];
@@ -38,42 +37,55 @@ Deno.serve(async (req) => {
     const programs = programsRes.data || [];
 
     const atRiskStudents = students.filter(s => s.risk_score >= 70);
-    const lowEngagementStudents = students.filter(s => s.engagement_score < 40);
+    const warningStudents = students.filter(s => s.risk_score >= 40 && s.risk_score < 70);
+    const lowEngagement = students.filter(s => s.engagement_score < 40);
 
-    const systemContext = `You are an AI assistant for the WorldLynk University Admin Portal - a student lifecycle management system.
+    const stageCount = students.reduce((acc: any, s) => {
+      acc[s.stage] = (acc[s.stage] || 0) + 1;
+      return acc;
+    }, {});
 
-Current Database State:
-- Total Students: ${students.length}
-- At-Risk Students (risk >= 70): ${atRiskStudents.length}
-- Low Engagement Students (engagement < 40): ${lowEngagementStudents.length}
-- Active Alerts: ${alerts.length}
-- Programs: ${programs.length}
+    if (!openaiKey) {
+      const fallbackResponse = `📊 **Current Data Summary**
 
-Student Summary:
-${students.slice(0, 10).map(s => `- ${s.name}: Stage=${s.stage}, Engagement=${s.engagement_score}, Risk=${s.risk_score}`).join('\n')}
+**Students:** ${students.length} total
+- 🔴 Critical Risk: ${atRiskStudents.length}
+- 🟡 Warning: ${warningStudents.length}
+- Low Engagement: ${lowEngagement.length}
 
-Alert Summary:
-${alerts.slice(0, 5).map(a => `- ${a.severity.toUpperCase()}: ${a.title}`).join('\n')}
+**Stages:** ${Object.entries(stageCount).map(([k, v]) => `${k}: ${v}`).join(', ')}
 
-Programs:
-${programs.map(p => `- ${p.name}: ${p.enrolled}/${p.capacity} enrolled`).join('\n')}
+**Alerts:** ${alerts.length} active
 
-You can help users:
-1. Get insights about students and their status
-2. Identify at-risk students
-3. Suggest interventions
-4. Answer questions about the system
-5. Provide recommendations based on data
+**Programs:** ${programs.length} (${programs.reduce((s, p) => s + p.enrolled, 0)} enrolled)
 
-When users ask to take actions, provide clear instructions on how to do it in the UI, or confirm the action if it's something that can be automated.
+${atRiskStudents.length > 0 ? `\n⚠️ **At-Risk Students:**\n${atRiskStudents.slice(0, 3).map(s => `- ${s.name}: Risk ${s.risk_score}%`).join('\n')}` : ''}
 
-Be concise, helpful, and data-driven in your responses.`;
+*Note: Full AI analysis requires OpenAI API key.*`;
 
-    const messages = [
-      { role: 'system', content: systemContext },
-      ...(conversationHistory || []).slice(-10),
-      { role: 'user', content: message }
-    ];
+      return new Response(
+        JSON.stringify({ response: fallbackResponse, context: { totalStudents: students.length, atRisk: atRiskStudents.length, alerts: alerts.length } }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const systemContext = `You are an AI assistant for WorldLynk University Admin Portal.
+
+LIVE DATABASE:
+- Students: ${students.length} | At-Risk: ${atRiskStudents.length} | Warning: ${warningStudents.length}
+- Alerts: ${alerts.length} active | Programs: ${programs.length}
+- Stages: ${Object.entries(stageCount).map(([k, v]) => `${k}=${v}`).join(', ')}
+
+AT-RISK (Top 5):
+${atRiskStudents.slice(0, 5).map(s => `${s.name}: Risk=${s.risk_score}%, Eng=${s.engagement_score}%, Stage=${s.stage}`).join('\n') || 'None'}
+
+ALERTS:
+${alerts.slice(0, 3).map(a => `[${a.severity}] ${a.title}`).join('\n') || 'None'}
+
+PROGRAMS:
+${programs.slice(0, 5).map(p => `${p.name}: ${p.enrolled}/${p.capacity}`).join('\n')}
+
+Be concise, data-driven, reference actual numbers. Help with insights, interventions, and recommendations.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -83,39 +95,36 @@ Be concise, helpful, and data-driven in your responses.`;
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages,
+        messages: [
+          { role: 'system', content: systemContext },
+          ...(conversationHistory || []).slice(-10),
+          { role: 'user', content: message }
+        ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 800,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      const errText = await response.text();
+      console.error('OpenAI error:', errText);
+      throw new Error(`OpenAI error: ${response.status}`);
     }
 
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
-    // Check if the response suggests an action
-    const actionSuggested = aiResponse.toLowerCase().includes('action:') || 
-                          aiResponse.toLowerCase().includes('recommend:');
-
     return new Response(
       JSON.stringify({ 
         response: aiResponse,
-        actionSuggested,
-        context: {
-          totalStudents: students.length,
-          atRisk: atRiskStudents.length,
-          alerts: alerts.length
-        }
+        context: { totalStudents: students.length, atRisk: atRiskStudents.length, alerts: alerts.length }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
-    console.error('Error in AI chat:', error);
+  } catch (error: any) {
+    console.error('AI Chat error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'An error occurred' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

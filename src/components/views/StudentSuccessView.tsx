@@ -133,7 +133,7 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/30 pulse-alert">
           <Sparkles className="w-4 h-4 text-orange-400" />
-          <span className="text-xs md:text-sm font-medium text-orange-400">Risk AI Active • 94% Accuracy</span>
+          <span className="text-xs md:text-sm font-medium text-orange-400">Risk AI Active • {students.length} Monitored</span>
         </div>
       </div>
 
