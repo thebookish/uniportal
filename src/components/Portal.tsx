@@ -19,7 +19,6 @@ import { StudentDetailPanel } from './students/StudentDetailPanel';
 import { SearchModal } from './modals/SearchModal';
 import { NotificationsPanel } from './modals/NotificationsPanel';
 import { AddStudentModal } from './modals/AddStudentModal';
-import { QuickActionsPanel } from './modals/QuickActionsPanel';
 import { AIChatbot } from './chat/AIChatbot';
 import { useAuth } from '@/contexts/AuthContext';
 import { Settings } from 'lucide-react';
@@ -139,14 +138,6 @@ export function Portal() {
         isOpen={addStudentOpen}
         onClose={() => setAddStudentOpen(false)}
         onSuccess={() => {}}
-      />
-
-      <QuickActionsPanel
-        currentView={activeView}
-        onAddStudent={() => setAddStudentOpen(true)}
-        onSendBroadcast={() => setActiveView('communications')}
-        onCreateRule={() => setActiveView('automation')}
-        onViewAIInsights={() => setActiveView('ai-intelligence')}
       />
 
       <AIChatbot />

@@ -31,14 +31,19 @@ export function AIIntelligenceView() {
   async function runBatchAnalysis() {
     setAnalyzing(true);
     try {
-      await runAIBatchAnalysis();
+      const result = await runAIBatchAnalysis();
       refetchStudents();
       refetchAlerts();
       loadAIStatus();
-      alert('Batch analysis completed! Check alerts for new insights.');
-    } catch (error) {
+      
+      if (result?.success) {
+        alert(`Analysis complete! Analyzed ${result.analyzed} students.${result.aiEnabled ? ' (AI-powered)' : ' (Fallback mode)'}`);
+      } else {
+        alert(`Analysis completed with issues: ${result?.error || 'Unknown'}`);
+      }
+    } catch (error: any) {
       console.error('Error running analysis:', error);
-      alert('Error running analysis. Please try again.');
+      alert(`Analysis error: ${error?.message || 'Please try again'}`);
     } finally {
       setAnalyzing(false);
     }
@@ -47,11 +52,15 @@ export function AIIntelligenceView() {
   async function analyzeIndividualStudent(studentId: string) {
     setAnalyzingStudent(studentId);
     try {
-      await analyzeStudentRisk(studentId);
+      const result = await analyzeStudentRisk(studentId);
       refetchStudents();
       refetchAlerts();
       loadAIStatus();
-    } catch (error) {
+      
+      if (result?.success) {
+        alert(`Risk analysis: ${result.risk_score}% - ${result.severity}`);
+      }
+    } catch (error: any) {
       console.error('Error analyzing student:', error);
     } finally {
       setAnalyzingStudent(null);

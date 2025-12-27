@@ -11,20 +11,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('VITE_SUPABASE_ANON_KEY');
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase configuration');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Database configuration missing', risk_score: 50, severity: 'warning', recommendations: ['Check environment variables'] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-    const { studentId } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid request body' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { studentId } = body;
 
     if (!studentId) {
-      throw new Error('Student ID is required');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Student ID is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { data: student, error: studentError } = await supabaseClient
@@ -33,10 +49,15 @@ Deno.serve(async (req) => {
       .eq('id', studentId)
       .single();
 
-    if (studentError) throw studentError;
+    if (studentError || !student) {
+      return new Response(
+        JSON.stringify({ success: false, error: studentError?.message || 'Student not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const daysSinceActivity = Math.floor(
-      (Date.now() - new Date(student.last_activity).getTime()) / (1000 * 60 * 60 * 24)
+      (Date.now() - new Date(student.last_activity || Date.now()).getTime()) / (1000 * 60 * 60 * 24)
     );
 
     let riskScore = 0;
@@ -147,15 +168,22 @@ Return: {"riskScore": <0-100>, "severity": "<critical|warning|info>", "recommend
         severity, 
         recommendations,
         reasoning,
-        student_name: student.name
+        student_name: student.name,
+        ai_powered: !!openaiKey
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    console.error('Error:', error);
+    console.error('Analyze risk error:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Unknown error' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ 
+        success: false, 
+        error: error.message || 'Analysis failed',
+        risk_score: 0,
+        severity: 'info',
+        recommendations: ['Unable to analyze - please try again']
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

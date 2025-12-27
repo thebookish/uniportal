@@ -3,7 +3,7 @@ import { MessageSquare, Send, X, Sparkles, Loader2, Bot, User, Minimize2, Maximi
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
+import { sendAIChatMessage } from '@/lib/ai';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -48,24 +48,10 @@ export function AIChatbot() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('supabase-functions-ai-chat', {
-        body: {
-          message: input.trim(),
-          conversationHistory: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          }))
-        }
-      });
-
-      if (error) {
-        console.error('AI Chat error:', error);
-        throw new Error(error.message || 'AI service error');
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
+      const data = await sendAIChatMessage(
+        input.trim(),
+        messages.map(m => ({ role: m.role, content: m.content }))
+      );
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -78,9 +64,7 @@ export function AIChatbot() {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
         role: 'assistant',
-        content: error?.message?.includes('OpenAI') 
-          ? 'The AI service is temporarily unavailable. Please ensure the OPENAI_API_KEY is configured correctly.'
-          : `I encountered an error: ${error?.message || 'Unknown error'}. Please try again.`,
+        content: `I encountered an issue. Please try again. ${error?.message || ''}`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -114,19 +98,10 @@ export function AIChatbot() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('supabase-functions-ai-chat', {
-        body: {
-          message: action,
-          conversationHistory: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          }))
-        }
-      });
-
-      if (error || data?.error) {
-        throw new Error(data?.error || error?.message || 'AI service error');
-      }
+      const data = await sendAIChatMessage(
+        action,
+        messages.map(m => ({ role: m.role, content: m.content }))
+      );
 
       const assistantMessage: Message = {
         role: 'assistant',
