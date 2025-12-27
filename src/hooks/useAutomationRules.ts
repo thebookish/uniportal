@@ -1,7 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Json } from "@supabase/supabase-js";
+
+/* =========================
+   LOCAL JSON TYPE (Supabase-safe)
+========================= */
+
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 /* =========================
    TYPES
@@ -26,9 +31,10 @@ type AutomationRule = {
 ========================= */
 
 function normalizeJsonObject(value: Json | null): Record<string, any> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value
-    : {};
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value;
+  }
+  return {};
 }
 
 /* =========================
@@ -61,7 +67,7 @@ export function useAutomationRules() {
 
       if (fetchError) throw fetchError;
 
-      const normalizedRules: AutomationRule[] = (data ?? []).map((rule) => ({
+      const normalized: AutomationRule[] = (data ?? []).map((rule: any) => ({
         id: rule.id,
         name: rule.name,
         description: rule.description,
@@ -75,7 +81,7 @@ export function useAutomationRules() {
         updated_at: rule.updated_at,
       }));
 
-      setRules(normalizedRules);
+      setRules(normalized);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -89,7 +95,7 @@ export function useAutomationRules() {
     if (!universityId) return;
 
     const channel = supabase
-      .channel(`automation-rules-changes-${universityId}`)
+      .channel(`automation-rules-${universityId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "automation_rules" },
