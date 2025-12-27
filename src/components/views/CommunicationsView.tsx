@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 export function CommunicationsView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [communications, setCommunications] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,15 +26,17 @@ export function CommunicationsView() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    fetchCommunications();
-    fetchTemplates();
+    if (universityId) {
+      fetchCommunications();
+      fetchTemplates();
+    }
 
     const channel = supabase
-      .channel('communications-realtime')
+      .channel(`communications-realtime-${universityId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'communications' }, () => {
         fetchCommunications();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'communication_templates' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_templates' }, () => {
         fetchTemplates();
       })
       .subscribe();
@@ -38,9 +44,10 @@ export function CommunicationsView() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [universityId]);
 
   async function fetchCommunications() {
+    if (!universityId) return;
     try {
       const { data, error } = await supabase
         .from('communications')
@@ -48,6 +55,7 @@ export function CommunicationsView() {
           *,
           students(name, email)
         `)
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -61,8 +69,13 @@ export function CommunicationsView() {
   }
 
   async function fetchTemplates() {
+    if (!universityId) return;
     try {
-      const { data } = await supabase.from('communication_templates').select('*').order('created_at', { ascending: false });
+      const { data } = await supabase
+        .from('email_templates')
+        .select('*')
+        .eq('university_id', universityId)
+        .order('created_at', { ascending: false });
       setTemplates(data || []);
     } catch (error) {
       console.error('Error:', error);
@@ -70,9 +83,10 @@ export function CommunicationsView() {
   }
 
   async function handleSendBroadcast() {
+    if (!universityId) return;
     setSending(true);
     try {
-      let query = supabase.from('students').select('id, name, email');
+      let query = supabase.from('students').select('id, name, email').eq('university_id', universityId);
       
       if (composeData.targetStage !== 'all') {
         query = query.eq('stage', composeData.targetStage);
@@ -100,7 +114,8 @@ export function CommunicationsView() {
               type: 'email',
               subject: composeData.subject,
               message: composeData.message.replace('{name}', student.name),
-              status: 'sent'
+              status: 'sent',
+              university_id: universityId
             })
             .select()
             .single();

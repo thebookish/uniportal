@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 export function OnboardingView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [tasks, setTasks] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [resources, setResources] = useState<any[]>([]);
@@ -27,10 +31,12 @@ export function OnboardingView() {
   });
 
   useEffect(() => {
-    fetchData();
+    if (universityId) {
+      fetchData();
+    }
 
     const channel = supabase
-      .channel('onboarding-realtime')
+      .channel(`onboarding-realtime-${universityId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'onboarding_tasks' }, () => {
         fetchData();
       })
@@ -42,14 +48,15 @@ export function OnboardingView() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [universityId]);
 
   async function fetchData() {
+    if (!universityId) return;
     try {
       const [tasksRes, studentsRes, resourcesRes] = await Promise.all([
-        supabase.from('onboarding_tasks').select('*, students(name, email)').order('created_at', { ascending: false }),
-        supabase.from('students').select('id, name, email').in('stage', ['enrollment', 'onboarding']),
-        supabase.from('content_resources').select('*').eq('is_active', true).order('created_at', { ascending: false })
+        supabase.from('onboarding_tasks').select('*, students(name, email)').eq('university_id', universityId).order('created_at', { ascending: false }),
+        supabase.from('students').select('id, name, email').eq('university_id', universityId).in('stage', ['enrollment', 'onboarding']),
+        supabase.from('content_resources').select('*').eq('university_id', universityId).eq('is_active', true).order('created_at', { ascending: false })
       ]);
       setTasks(tasksRes.data || []);
       setStudents(studentsRes.data || []);
@@ -62,13 +69,15 @@ export function OnboardingView() {
   }
 
   async function createTask() {
+    if (!universityId) return;
     try {
       await supabase.from('onboarding_tasks').insert({
         title: newTask.title,
         description: newTask.description,
         student_id: newTask.student_id,
         due_date: newTask.due_date || null,
-        status: 'pending'
+        status: 'pending',
+        university_id: universityId
       });
       setNewTask({ title: '', description: '', student_id: '', due_date: '' });
       setShowCreateTask(false);
@@ -79,8 +88,9 @@ export function OnboardingView() {
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
+    if (!universityId) return;
     try {
-      await supabase.from('onboarding_tasks').update({ status }).eq('id', taskId);
+      await supabase.from('onboarding_tasks').update({ status }).eq('id', taskId).eq('university_id', universityId);
       fetchData();
     } catch (error) {
       console.error('Error:', error);
@@ -89,8 +99,9 @@ export function OnboardingView() {
 
   async function deleteTask(taskId: string) {
     if (!confirm('Delete this task?')) return;
+    if (!universityId) return;
     try {
-      await supabase.from('onboarding_tasks').delete().eq('id', taskId);
+      await supabase.from('onboarding_tasks').delete().eq('id', taskId).eq('university_id', universityId);
       fetchData();
     } catch (error) {
       console.error('Error:', error);
@@ -98,13 +109,15 @@ export function OnboardingView() {
   }
 
   async function sendReminder(task: any) {
+    if (!universityId) return;
     try {
       await supabase.from('communications').insert({
         student_id: task.student_id,
         type: 'email',
         subject: `Reminder: ${task.title}`,
         message: `Hi ${task.students?.name}, this is a reminder about your pending task: ${task.title}. ${task.description || ''}`,
-        status: 'sent'
+        status: 'sent',
+        university_id: universityId
       });
       alert('Reminder sent!');
     } catch (error) {
@@ -113,13 +126,14 @@ export function OnboardingView() {
   }
 
   async function applyTemplate(studentId: string) {
+    if (!universityId) return;
     try {
       const defaultTasks = [
-        { title: 'Submit ID Document', description: 'Upload a valid government-issued ID' },
-        { title: 'Complete Profile', description: 'Fill in all required profile information' },
-        { title: 'Watch Orientation Video', description: 'Complete the online orientation module' },
-        { title: 'Pay Enrollment Fee', description: 'Complete the initial payment' },
-        { title: 'Sign Student Agreement', description: 'Review and sign the enrollment agreement' }
+        { title: 'Submit ID Document', description: 'Upload a valid government-issued ID', university_id: universityId },
+        { title: 'Complete Profile', description: 'Fill in all required profile information', university_id: universityId },
+        { title: 'Watch Orientation Video', description: 'Complete the online orientation module', university_id: universityId },
+        { title: 'Pay Enrollment Fee', description: 'Complete the initial payment', university_id: universityId },
+        { title: 'Sign Student Agreement', description: 'Review and sign the enrollment agreement', university_id: universityId }
       ];
 
       await supabase.from('onboarding_tasks').insert(

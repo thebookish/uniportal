@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStudents } from '@/hooks/useStudents';
 import { usePrograms } from '@/hooks/usePrograms';
+import { useAuth } from '@/contexts/AuthContext';
 import { Sparkles, Loader2, Target, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,9 @@ interface CourseFitViewProps {
 }
 
 export function CourseFitView({ onStudentClick }: CourseFitViewProps) {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const { students, loading: studentsLoading, refetch } = useStudents();
   const { programs, loading: programsLoading } = usePrograms();
   const [fitScores, setFitScores] = useState<Record<string, { score: number; reasons: string[]; alternatives: string[] }>>({});
@@ -75,15 +79,17 @@ export function CourseFitView({ onStudentClick }: CourseFitViewProps) {
   }
 
   async function reassignProgram(studentId: string, programId: string) {
+    if (!universityId) return;
     try {
-      await supabase.from('students').update({ program_id: programId }).eq('id', studentId);
+      await supabase.from('students').update({ program_id: programId }).eq('id', studentId).eq('university_id', universityId);
       await supabase.from('ai_alerts').insert({
         severity: 'info',
         title: 'Program Reassigned',
         description: 'Student has been reassigned to a better-fit program based on AI analysis',
         student_id: studentId,
         recommendations: ['Monitor engagement over next 2 weeks', 'Schedule check-in meeting'],
-        read: false
+        read: false,
+        university_id: universityId
       });
       refetch();
     } catch (error) {

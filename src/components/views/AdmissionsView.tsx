@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStudents } from '@/hooks/useStudents';
+import { useAuth } from '@/contexts/AuthContext';
 import { Search, Filter, Star, FileText, Send, CheckCircle, XCircle, Loader2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,9 @@ interface AdmissionsViewProps {
 }
 
 export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [activeTab, setActiveTab] = useState<'leads' | 'applications' | 'offers'>('leads');
   const [searchQuery, setSearchQuery] = useState('');
   const { students, loading, refetch } = useStudents();
@@ -30,15 +34,17 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
   ).sort((a, b) => (b.quality_score || 50) - (a.quality_score || 50));
 
   async function issueOffer(studentId: string) {
+    if (!universityId) return;
     setActionLoading(studentId);
     try {
-      await supabase.from('students').update({ stage: 'offer' }).eq('id', studentId);
+      await supabase.from('students').update({ stage: 'offer' }).eq('id', studentId).eq('university_id', universityId);
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
         subject: 'Congratulations! Your Offer Letter',
         message: 'We are pleased to inform you that you have been accepted...',
-        status: 'sent'
+        status: 'sent',
+        university_id: universityId
       });
       refetch();
     } catch (error) {
@@ -49,19 +55,21 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
   }
 
   async function requestDocuments(studentId: string) {
+    if (!universityId) return;
     setActionLoading(studentId);
     try {
       await supabase.from('documents').insert([
-        { student_id: studentId, name: 'Transcript', status: 'pending' },
-        { student_id: studentId, name: 'ID Document', status: 'pending' },
-        { student_id: studentId, name: 'English Proficiency', status: 'pending' }
+        { student_id: studentId, name: 'Transcript', status: 'pending', university_id: universityId },
+        { student_id: studentId, name: 'ID Document', status: 'pending', university_id: universityId },
+        { student_id: studentId, name: 'English Proficiency', status: 'pending', university_id: universityId }
       ]);
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
         subject: 'Documents Required',
         message: 'Please submit the required documents to complete your application.',
-        status: 'sent'
+        status: 'sent',
+        university_id: universityId
       });
       refetch();
     } catch (error) {

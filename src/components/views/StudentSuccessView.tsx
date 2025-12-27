@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStudents } from '@/hooks/useStudents';
 import { useAIAlerts } from '@/hooks/useAIAlerts';
+import { useAuth } from '@/contexts/AuthContext';
 import { AlertTriangle, TrendingDown, TrendingUp, Sparkles, Loader2, UserPlus, Send, CheckCircle, Clock, Target, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,9 @@ interface StudentSuccessViewProps {
 }
 
 export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const { students, loading, refetch } = useStudents();
   const { alerts } = useAIAlerts();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -26,23 +30,26 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
   const riskResolvedStudents = students.filter(s => s.stage === 'active' && s.risk_score < 40);
 
   async function assignCounselor(studentId: string) {
+    if (!universityId) return;
     setActionLoading(studentId);
     try {
       const { data: counselors } = await supabase
         .from('users')
         .select('id')
+        .eq('university_id', universityId)
         .eq('role', 'admissions')
         .limit(1);
       
       if (counselors && counselors.length > 0) {
-        await supabase.from('students').update({ counselor_id: counselors[0].id }).eq('id', studentId);
+        await supabase.from('students').update({ counselor_id: counselors[0].id }).eq('id', studentId).eq('university_id', universityId);
         await supabase.from('ai_alerts').insert({
           severity: 'info',
           title: 'Counselor Assigned',
           description: 'A counselor has been assigned to provide support',
           student_id: studentId,
           recommendations: ['Schedule initial meeting', 'Review student history'],
-          read: false
+          read: false,
+          university_id: universityId
         });
       }
       refetch();
@@ -54,6 +61,7 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
   }
 
   async function triggerIntervention(studentId: string, type: string) {
+    if (!universityId) return;
     setActionLoading(studentId);
     try {
       const student = students.find(s => s.id === studentId);
@@ -65,7 +73,8 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
           type: 'email',
           subject: 'We\'re Here to Help',
           message: `Hi ${student.name}, we noticed you might need some support. Our team is here to help you succeed. Please reach out if you need anything.`,
-          status: 'sent'
+          status: 'sent',
+          university_id: universityId
         });
       } else if (type === 'meeting') {
         await supabase.from('onboarding_tasks').insert({
@@ -73,14 +82,16 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
           title: 'Support Meeting Scheduled',
           description: 'One-on-one meeting with student success team',
           status: 'pending',
-          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          university_id: universityId
         });
       } else if (type === 'mentorship') {
         await supabase.from('onboarding_tasks').insert({
           student_id: studentId,
           title: 'Peer Mentorship Program',
           description: 'Connect with a peer mentor for academic support',
-          status: 'pending'
+          status: 'pending',
+          university_id: universityId
         });
       }
 
@@ -90,7 +101,8 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
         description: `${type.charAt(0).toUpperCase() + type.slice(1)} intervention initiated for ${student.name}`,
         student_id: studentId,
         recommendations: ['Monitor engagement over next 7 days', 'Follow up if no improvement'],
-        read: false
+        read: false,
+        university_id: universityId
       });
 
       refetch();

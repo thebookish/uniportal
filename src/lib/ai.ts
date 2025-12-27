@@ -1,9 +1,9 @@
 import { supabase } from './supabase';
 
-export async function analyzeStudentRisk(studentId: string) {
+export async function analyzeStudentRisk(studentId: string, universityId?: string) {
   try {
     const { data, error } = await supabase.functions.invoke('supabase-functions-analyze-student-risk', {
-      body: { studentId }
+      body: { studentId, universityId }
     });
 
     if (error) {
@@ -18,10 +18,10 @@ export async function analyzeStudentRisk(studentId: string) {
   }
 }
 
-export async function generateRecommendations(studentId: string, context?: string) {
+export async function generateRecommendations(studentId: string, context?: string, universityId?: string) {
   try {
     const { data, error } = await supabase.functions.invoke('supabase-functions-generate-recommendations', {
-      body: { studentId, context }
+      body: { studentId, context, universityId }
     });
 
     if (error) {
@@ -36,9 +36,11 @@ export async function generateRecommendations(studentId: string, context?: strin
   }
 }
 
-export async function runBatchAnalysis() {
+export async function runBatchAnalysis(universityId?: string) {
   try {
-    const { data, error } = await supabase.functions.invoke('supabase-functions-batch-analyze-students', {});
+    const { data, error } = await supabase.functions.invoke('supabase-functions-batch-analyze-students', {
+      body: { universityId }
+    });
 
     if (error) {
       console.error('Edge function error:', error);

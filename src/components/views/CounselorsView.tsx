@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { useStudents } from '@/hooks/useStudents';
 
 export function CounselorsView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [counselors, setCounselors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -29,6 +33,7 @@ export function CounselorsView() {
   });
 
   async function viewCounselorStudents(counselorId: string) {
+    if (!universityId) return;
     const counselor = counselors.find(c => c.id === counselorId);
     setSelectedCounselor(counselor);
     
@@ -36,6 +41,7 @@ export function CounselorsView() {
       .from('students')
       .select('*')
       .eq('counselor_id', counselorId)
+      .eq('university_id', universityId)
       .order('created_at', { ascending: false });
     
     setCounselorStudents(data || []);
@@ -49,13 +55,14 @@ export function CounselorsView() {
   }
 
   async function handleReassignStudents() {
-    if (!targetCounselorId || !selectedCounselor) return;
+    if (!targetCounselorId || !selectedCounselor || !universityId) return;
     setReassigning(true);
     try {
       await supabase
         .from('students')
         .update({ counselor_id: targetCounselorId })
-        .eq('counselor_id', selectedCounselor.id);
+        .eq('counselor_id', selectedCounselor.id)
+        .eq('university_id', universityId);
       
       setShowReassignModal(false);
       fetchCounselors();
@@ -67,10 +74,12 @@ export function CounselorsView() {
   }
 
   useEffect(() => {
-    fetchCounselors();
+    if (universityId) {
+      fetchCounselors();
+    }
 
     const channel = supabase
-      .channel('counselors-realtime')
+      .channel(`counselors-realtime-${universityId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
         fetchCounselors();
       })
@@ -85,13 +94,15 @@ export function CounselorsView() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [universityId]);
 
   async function fetchCounselors() {
+    if (!universityId) return;
     try {
       const { data: users, error } = await supabase
         .from('users')
         .select('*')
+        .eq('university_id', universityId)
         .in('role', ['admissions', 'student_success']);
 
       if (error) throw error;
@@ -101,17 +112,20 @@ export function CounselorsView() {
           const { count: assignedCount } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
-            .eq('counselor_id', user.id);
+            .eq('counselor_id', user.id)
+            .eq('university_id', universityId);
 
           const { count: convertedCount } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
             .eq('counselor_id', user.id)
+            .eq('university_id', universityId)
             .in('stage', ['active', 'enrollment', 'acceptance']);
 
           const { data: comms } = await supabase
             .from('communications')
             .select('created_at')
+            .eq('university_id', universityId)
             .eq('status', 'sent')
             .order('created_at', { ascending: false })
             .limit(10);
@@ -139,7 +153,7 @@ export function CounselorsView() {
   }
 
   async function handleAddCounselor() {
-    if (!formData.name || !formData.email) return;
+    if (!formData.name || !formData.email || !universityId) return;
     setSaving(true);
     try {
       // Create user directly as a counselor
@@ -147,7 +161,8 @@ export function CounselorsView() {
         name: formData.name,
         email: formData.email,
         role: 'admissions',
-        auth_id: crypto.randomUUID() // Placeholder auth_id
+        auth_id: crypto.randomUUID(),
+        university_id: universityId
       });
       
       if (error) throw error;
@@ -166,16 +181,18 @@ export function CounselorsView() {
 
   async function handleDeleteCounselor(counselorId: string) {
     if (!confirm('Are you sure you want to remove this counselor? Their students will be unassigned.')) return;
+    if (!universityId) return;
     setDeleting(counselorId);
     try {
       // First unassign all students
       await supabase
         .from('students')
         .update({ counselor_id: null })
-        .eq('counselor_id', counselorId);
+        .eq('counselor_id', counselorId)
+        .eq('university_id', universityId);
       
       // Then delete the counselor
-      await supabase.from('users').delete().eq('id', counselorId);
+      await supabase.from('users').delete().eq('id', counselorId).eq('university_id', universityId);
       fetchCounselors();
     } catch (error) {
       console.error('Error deleting counselor:', error);
@@ -185,6 +202,7 @@ export function CounselorsView() {
   }
 
   async function openAssignModal(counselor: any) {
+    if (!universityId) return;
     setSelectedCounselor(counselor);
     setSelectedStudentIds([]);
     
@@ -192,6 +210,7 @@ export function CounselorsView() {
     const { data } = await supabase
       .from('students')
       .select('*')
+      .eq('university_id', universityId)
       .is('counselor_id', null)
       .order('created_at', { ascending: false });
     

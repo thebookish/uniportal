@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { studentId } = body;
+    const { studentId, universityId } = body;
 
     if (!studentId) {
       return new Response(
@@ -43,11 +43,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: student, error: studentError } = await supabaseClient
+    let studentQuery = supabaseClient
       .from('students')
       .select('*')
-      .eq('id', studentId)
-      .single();
+      .eq('id', studentId);
+    
+    // Filter by university if provided
+    if (universityId) {
+      studentQuery = studentQuery.eq('university_id', universityId);
+    }
+    
+    const { data: student, error: studentError } = await studentQuery.single();
 
     if (studentError || !student) {
       return new Response(
@@ -156,7 +162,8 @@ Return: {"riskScore": <0-100>, "severity": "<critical|warning|info>", "recommend
           description: `${student.name}: ${reasoning}`,
           student_id: studentId,
           recommendations,
-          read: false
+          read: false,
+          university_id: student.university_id
         });
       }
     }

@@ -3,6 +3,7 @@ import { X, Mail, Phone, MapPin, Calendar, FileText, Sparkles, AlertTriangle, Tr
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ObligationsPanel } from './ObligationsPanel';
@@ -13,6 +14,9 @@ interface StudentDetailPanelProps {
 }
 
 export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelProps) {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -66,17 +70,20 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   }
 
   async function sendMessage() {
+    if (!universityId) return;
     await supabase.from('communications').insert({
       student_id: studentId,
       type: 'email',
       subject: 'Check-in from WorldLynk',
       message: `Hi ${student.name}, we wanted to check in and see how you're doing.`,
-      status: 'sent'
+      status: 'sent',
+      university_id: universityId
     });
     alert('Message sent!');
   }
 
   async function scheduleMeeting() {
+    if (!universityId) return;
     try {
       // Create an onboarding task for the meeting
       await supabase.from('onboarding_tasks').insert({
@@ -84,7 +91,8 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
         title: `Counseling Meeting with ${student?.name}`,
         description: 'Scheduled intervention meeting to discuss progress and support options.',
         status: 'pending',
-        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        university_id: universityId
       });
 
       // Send notification to student
@@ -93,7 +101,8 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
         type: 'email',
         subject: 'Meeting Scheduled - WorldLynk',
         message: `Hi ${student?.name}, a counseling meeting has been scheduled for you. Please check your portal for details.`,
-        status: 'sent'
+        status: 'sent',
+        university_id: universityId
       });
 
       // Create AI alert for tracking
@@ -103,7 +112,8 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
         description: `Counseling meeting scheduled with ${student?.name}`,
         student_id: studentId,
         recommendations: ['Prepare intervention discussion points', 'Review student history before meeting'],
-        read: false
+        read: false,
+        university_id: universityId
       });
 
       alert('Meeting scheduled successfully!');
@@ -114,10 +124,12 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   }
 
   async function initiateIntervention() {
+    if (!universityId) return;
     try {
       await supabase.from('ai_alerts').insert({
         severity: 'warning',
         title: 'Intervention Initiated',
+        university_id: universityId,
         description: `Manual intervention initiated for ${student?.name} by admin`,
         student_id: studentId,
         recommendations: [

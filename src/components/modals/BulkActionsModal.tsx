@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface BulkActionsModalProps {
@@ -14,6 +15,9 @@ interface BulkActionsModalProps {
 }
 
 export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess }: BulkActionsModalProps) {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [action, setAction] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -26,11 +30,13 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
   if (!isOpen) return null;
 
   async function loadCounselors() {
-    const { data } = await supabase.from('users').select('id, name').eq('role', 'admissions');
+    if (!universityId) return;
+    const { data } = await supabase.from('users').select('id, name').eq('university_id', universityId).eq('role', 'admissions');
     setCounselors(data || []);
   }
 
   async function executeBulkAction() {
+    if (!universityId) return;
     setLoading(true);
     setProgress(0);
     let success = 0;
@@ -46,10 +52,11 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
               type: 'email',
               subject: messageSubject,
               message: messageBody.replace('{name}', student.name),
-              status: 'sent'
+              status: 'sent',
+              university_id: universityId
             });
           } else if (action === 'assign_counselor') {
-            await supabase.from('students').update({ counselor_id: selectedCounselor }).eq('id', student.id);
+            await supabase.from('students').update({ counselor_id: selectedCounselor }).eq('id', student.id).eq('university_id', universityId);
           } else if (action === 'trigger_workflow') {
             await supabase.from('ai_alerts').insert({
               severity: 'info',
@@ -57,7 +64,8 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
               description: `Bulk workflow triggered for ${student.name}`,
               student_id: student.id,
               recommendations: ['Review student profile', 'Follow up within 48 hours'],
-              read: false
+              read: false,
+              university_id: universityId
             });
           }
           success++;

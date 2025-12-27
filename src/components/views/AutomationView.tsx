@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 export function AutomationView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const [rules, setRules] = useState<any[]>([]);
   const [executionLog, setExecutionLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +28,13 @@ export function AutomationView() {
   });
 
   useEffect(() => {
-    fetchRules();
-    fetchExecutionLog();
+    if (universityId) {
+      fetchRules();
+      fetchExecutionLog();
+    }
 
     const channel = supabase
-      .channel('automation-realtime')
+      .channel(`automation-realtime-${universityId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_rules' }, () => {
         fetchRules();
       })
@@ -40,13 +46,15 @@ export function AutomationView() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [universityId]);
 
   async function fetchRules() {
+    if (!universityId) return;
     try {
       const { data, error } = await supabase
         .from('automation_rules')
         .select('*')
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -59,10 +67,12 @@ export function AutomationView() {
   }
 
   async function fetchExecutionLog() {
+    if (!universityId) return;
     try {
       const { data } = await supabase
         .from('ai_alerts')
         .select('*, students(name)')
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false })
         .limit(50);
       setExecutionLog(data || []);
@@ -72,12 +82,13 @@ export function AutomationView() {
   }
 
   async function testRule(ruleId: string) {
+    if (!universityId) return;
     setTesting(ruleId);
     try {
       const rule = rules.find(r => r.id === ruleId);
       if (!rule) return;
 
-      let query = supabase.from('students').select('id, name');
+      let query = supabase.from('students').select('id, name').eq('university_id', universityId);
       
       if (rule.trigger_config?.condition === 'engagement_low') {
         query = query.lt('engagement_score', 40);
@@ -94,7 +105,8 @@ export function AutomationView() {
           description: `Rule test executed for ${students[0].name}`,
           student_id: students[0].id,
           recommendations: ['This is a test execution'],
-          read: false
+          read: false,
+          university_id: universityId
         });
         alert('Test successful! Check the execution log.');
         fetchExecutionLog();
@@ -109,6 +121,7 @@ export function AutomationView() {
   }
 
   async function handleCreateRule() {
+    if (!universityId) return;
     setCreating(true);
     try {
       const { error } = await supabase.from('automation_rules').insert({
@@ -118,6 +131,7 @@ export function AutomationView() {
         trigger_config: { condition: newRule.trigger_condition },
         action_type: newRule.action_type,
         action_config: {},
+        university_id: universityId,
         is_active: true
       });
 

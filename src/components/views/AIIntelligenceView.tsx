@@ -1,5 +1,6 @@
 import { useStudents } from '@/hooks/useStudents';
 import { useAIAlerts } from '@/hooks/useAIAlerts';
+import { useAuth } from '@/contexts/AuthContext';
 import { Sparkles, TrendingDown, AlertTriangle, Brain, Target, Loader2, Play, Shield, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,9 @@ import { InstitutionalRiskBanner } from '@/components/dashboard/InstitutionalRis
 import { runBatchAnalysis as runAIBatchAnalysis, getAIStatus, analyzeStudentRisk } from '@/lib/ai';
 
 export function AIIntelligenceView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
+  
   const { students, loading: studentsLoading, refetch: refetchStudents } = useStudents();
   const { alerts, loading: alertsLoading, refetch: refetchAlerts } = useAIAlerts();
   const [analyzing, setAnalyzing] = useState(false);
@@ -31,7 +35,7 @@ export function AIIntelligenceView() {
   async function runBatchAnalysis() {
     setAnalyzing(true);
     try {
-      const result = await runAIBatchAnalysis();
+      const result = await runAIBatchAnalysis(universityId);
       refetchStudents();
       refetchAlerts();
       loadAIStatus();
@@ -52,7 +56,7 @@ export function AIIntelligenceView() {
   async function analyzeIndividualStudent(studentId: string) {
     setAnalyzingStudent(studentId);
     try {
-      const result = await analyzeStudentRisk(studentId);
+      const result = await analyzeStudentRisk(studentId, universityId);
       refetchStudents();
       refetchAlerts();
       loadAIStatus();
