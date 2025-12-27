@@ -27,6 +27,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+  university_id?: string;
 }
 
 export interface Student {

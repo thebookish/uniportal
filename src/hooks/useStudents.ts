@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Student = {
   id: string;
@@ -14,6 +15,7 @@ type Student = {
   source: string | null;
   program_id: string | null;
   counselor_id: string | null;
+  university_id: string | null;
   last_activity: string;
   tags: string[] | null;
   notes: string | null;
@@ -25,11 +27,19 @@ type Student = {
 };
 
 export function useStudents(stage?: string) {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchStudents = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       let query = supabase
@@ -40,6 +50,7 @@ export function useStudents(stage?: string) {
           users!students_counselor_id_fkey(*),
           documents(*)
         `)
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false });
 
       if (stage && stage !== 'all') {
@@ -55,7 +66,7 @@ export function useStudents(stage?: string) {
     } finally {
       setLoading(false);
     }
-  }, [stage]);
+  }, [stage, universityId]);
 
   useEffect(() => {
     fetchStudents();

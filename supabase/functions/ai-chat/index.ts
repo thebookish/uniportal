@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
       body = { message: 'Hello' };
     }
     
-    const { message, conversationHistory, action } = body;
+    const { message, conversationHistory, action, universityId } = body;
     
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
     
@@ -39,12 +39,28 @@ Deno.serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
+    // Build queries with optional university filtering
+    let studentsQuery = supabaseClient.from('students').select('*');
+    let alertsQuery = supabaseClient.from('ai_alerts').select('*').order('created_at', { ascending: false }).limit(50);
+    let programsQuery = supabaseClient.from('programs').select('*');
+    let counselorsQuery = supabaseClient.from('users').select('*');
+    let onboardingQuery = supabaseClient.from('onboarding_tasks').select('*');
+
+    // Filter by university_id if provided
+    if (universityId) {
+      studentsQuery = studentsQuery.eq('university_id', universityId);
+      alertsQuery = alertsQuery.eq('university_id', universityId);
+      programsQuery = programsQuery.eq('university_id', universityId);
+      counselorsQuery = counselorsQuery.eq('university_id', universityId);
+      onboardingQuery = onboardingQuery.eq('university_id', universityId);
+    }
+
     const [studentsRes, alertsRes, programsRes, counselorsRes, onboardingRes] = await Promise.all([
-      supabaseClient.from('students').select('*'),
-      supabaseClient.from('ai_alerts').select('*').order('created_at', { ascending: false }).limit(50),
-      supabaseClient.from('programs').select('*'),
-      supabaseClient.from('users').select('*').eq('role', 'admissions'),
-      supabaseClient.from('onboarding_tasks').select('*')
+      studentsQuery,
+      alertsQuery,
+      programsQuery,
+      counselorsQuery,
+      onboardingQuery
     ]);
 
     const students = studentsRes.data || [];

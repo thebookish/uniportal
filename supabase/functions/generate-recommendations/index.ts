@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       body = {};
     }
 
-    const { studentId, context } = body;
+    const { studentId, context, universityId } = body;
 
     if (!studentId) {
       return new Response(
@@ -71,11 +71,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: student, error } = await supabaseClient
+    let studentQuery = supabaseClient
       .from('students')
       .select('*')
-      .eq('id', studentId)
-      .single();
+      .eq('id', studentId);
+    
+    // Optionally filter by university
+    if (universityId) {
+      studentQuery = studentQuery.eq('university_id', universityId);
+    }
+    
+    const { data: student, error } = await studentQuery.single();
 
     if (error || !student) {
       return new Response(

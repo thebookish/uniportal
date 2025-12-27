@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type AIAlert = {
   id: string;
@@ -9,16 +10,25 @@ type AIAlert = {
   student_id: string | null;
   recommendations: string[] | null;
   read: boolean;
+  university_id: string | null;
   created_at: string;
   students?: any;
 };
 
 export function useAIAlerts() {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [alerts, setAlerts] = useState<AIAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchAlerts = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const { data, error: fetchError } = await supabase
@@ -27,6 +37,7 @@ export function useAIAlerts() {
           *,
           students(*)
         `)
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -37,13 +48,13 @@ export function useAIAlerts() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [universityId]);
 
   useEffect(() => {
     fetchAlerts();
 
     const channel = supabase
-      .channel('alerts-realtime-changes')
+      .channel(`alerts-realtime-${universityId}`)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
@@ -59,7 +70,7 @@ export function useAIAlerts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchAlerts]);
+  }, [fetchAlerts, universityId]);
 
   async function markAsRead(alertId: string) {
     await supabase

@@ -3,15 +3,24 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 
-type UserProfile = Database['public']['Tables']['users']['Row'];
+type UserProfile = Database['public']['Tables']['users']['Row'] & { university_id?: string };
+
+interface University {
+  id: string;
+  name: string;
+  domain?: string;
+  logo_url?: string;
+  settings?: any;
+}
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  university: University | null;
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string, role: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, role: string, universityName?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -20,6 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [university, setUniversity] = useState<University | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,24 +76,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (!data) {
-        // Profile doesn't exist yet, create a default one
+        // Profile doesn't exist yet, create a default one with new university
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         const userEmail = currentUser?.email;
         if (userEmail) {
           try {
+            // Create a new university for this user
+            const { data: newUniversity, error: uniError } = await supabase
+              .from('universities')
+              .insert({
+                name: `${userEmail.split('@')[0]}'s University`,
+                domain: userEmail.split('@')[1]
+              })
+              .select()
+              .single();
+            
+            if (uniError) {
+              console.warn('Could not create university:', uniError);
+              setLoading(false);
+              return;
+            }
+
             const { data: newProfile, error: createError } = await supabase
               .from('users')
               .insert({
                 auth_id: userId,
                 email: userEmail,
                 name: userEmail.split('@')[0],
-                role: 'super_admin'
+                role: 'super_admin',
+                university_id: newUniversity.id
               })
               .select()
               .single();
             
             if (!createError && newProfile) {
               setProfile(newProfile);
+              setUniversity(newUniversity);
             }
           } catch (insertError) {
             console.warn('Could not create profile:', insertError);
@@ -91,6 +119,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setProfile(data);
+        // Fetch university data
+        if (data.university_id) {
+          const { data: uniData } = await supabase
+            .from('universities')
+            .select('*')
+            .eq('id', data.university_id)
+            .single();
+          if (uniData) {
+            setUniversity(uniData);
+          }
+        }
       }
     } catch (error: any) {
       // Handle network errors gracefully
@@ -112,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
-  async function signUp(email: string, password: string, name: string, role: string) {
+  async function signUp(email: string, password: string, name: string, role: string, universityName?: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -120,11 +159,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
 
     if (data.user) {
+      // Create a new university for this user
+      const { data: newUniversity, error: uniError } = await supabase
+        .from('universities')
+        .insert({
+          name: universityName || `${name}'s University`,
+          domain: email.split('@')[1]
+        })
+        .select()
+        .single();
+      
+      if (uniError) throw uniError;
+
       const { error: profileError } = await supabase.from('users').insert({
         auth_id: data.user.id,
         email,
         name,
         role: role as any,
+        university_id: newUniversity.id
       });
       if (profileError) throw profileError;
     }
@@ -140,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         profile,
+        university,
         session,
         loading,
         signIn,

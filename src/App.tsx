@@ -7,7 +7,7 @@ import { supabase } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 function AppContent() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, university, loading } = useAuth();
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
 
@@ -17,18 +17,39 @@ function AppContent() {
     } else if (!loading) {
       setCheckingSetup(false);
     }
-  }, [user, profile, loading]);
+  }, [user, profile, loading, university]);
 
   async function checkSetupStatus() {
     try {
-      const { data } = await supabase
-        .from('university_profile')
-        .select('setup_completed')
-        .maybeSingle();
+      // Check if university has completed setup via the settings field
+      const universityId = (profile as any)?.university_id;
       
-      setNeedsSetup(!data?.setup_completed && profile?.role === 'super_admin');
+      if (!universityId) {
+        // No university assigned - this shouldn't happen but skip setup for now
+        console.warn('No university_id found in profile');
+        setNeedsSetup(false);
+        setCheckingSetup(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('universities')
+        .select('settings')
+        .eq('id', universityId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching university settings:', error);
+        setNeedsSetup(false);
+        setCheckingSetup(false);
+        return;
+      }
+      
+      const setupCompleted = (data?.settings as any)?.setup_completed === true;
+      setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
     } catch (error) {
       console.error('Error checking setup:', error);
+      setNeedsSetup(false);
     } finally {
       setCheckingSetup(false);
     }

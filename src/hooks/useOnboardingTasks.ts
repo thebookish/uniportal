@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type OnboardingTask = {
   id: string;
@@ -8,31 +9,25 @@ type OnboardingTask = {
   description: string | null;
   status: string;
   due_date: string | null;
+  university_id: string | null;
   created_at: string;
   students?: { name: string; email: string } | null;
 };
 
 export function useOnboardingTasks() {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [tasks, setTasks] = useState<OnboardingTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchTasks();
-
-    const channel = supabase
-      .channel('onboarding-tasks-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'onboarding_tasks' }, () => {
-        fetchTasks();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function fetchTasks() {
+  const fetchTasks = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const { data, error: fetchError } = await supabase
@@ -41,6 +36,7 @@ export function useOnboardingTasks() {
           *,
           students(name, email)
         `)
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -50,7 +46,22 @@ export function useOnboardingTasks() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [universityId]);
+
+  useEffect(() => {
+    fetchTasks();
+
+    const channel = supabase
+      .channel(`onboarding-tasks-changes-${universityId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'onboarding_tasks' }, () => {
+        fetchTasks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [universityId, fetchTasks]);
 
   return { tasks, loading, error, refetch: fetchTasks };
 }

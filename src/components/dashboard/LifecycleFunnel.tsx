@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 export function LifecycleFunnel() {
   const { stages, loading } = useLifecycleStats();
 
-  if (loading) {
+  if (loading || !stages || stages.length === 0) {
     return (
       <div className="glass-card p-6">
         <div className="animate-pulse space-y-4">
@@ -19,7 +19,7 @@ export function LifecycleFunnel() {
     );
   }
 
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
+  const maxCount = Math.max(...stages.map(s => s.count || 0), 1);
   const stageColors: Record<string, string> = {
     lead: '#6B7280',
     application: '#3B82F6',
@@ -57,16 +57,19 @@ export function LifecycleFunnel() {
 
       <div className="space-y-3">
         {stages.slice(0, 8).map((stage, index) => {
-          const width = (stage.count / maxCount) * 100;
+          const stageCount = stage.count || 0;
+          const width = (stageCount / maxCount) * 100;
           const prevStage = stages[index - 1];
-          const dropoff = prevStage && prevStage.count > 0 ? ((prevStage.count - stage.count) / prevStage.count) * 100 : 0;
+          const prevCount = prevStage?.count || 0;
+          const dropoff = prevCount > 0 ? ((prevCount - stageCount) / prevCount) * 100 : 0;
+          const firstStageCount = stages[0]?.count || 0;
 
           return (
             <div key={stage.stage} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-300 font-medium">{stageLabels[stage.stage]}</span>
                 <div className="flex items-center gap-3">
-                  <span className="metric-number text-white">{stage.count.toLocaleString()}</span>
+                  <span className="metric-number text-white">{stageCount.toLocaleString()}</span>
                   {dropoff > 0 && (
                     <span className="text-xs text-red-400">
                       -{dropoff.toFixed(1)}%
@@ -88,7 +91,7 @@ export function LifecycleFunnel() {
                   }}
                 >
                   <span className="text-xs font-medium text-white/90">
-                    {stages[0].count > 0 ? ((stage.count / stages[0].count) * 100).toFixed(1) : 0}%
+                    {firstStageCount > 0 ? ((stageCount / firstStageCount) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
@@ -101,20 +104,20 @@ export function LifecycleFunnel() {
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-2xl font-bold metric-number text-green-400">
-              {stages[0].count > 0 ? ((stages.find(s => s.stage === 'retained')?.count || 0) / stages[0].count * 100).toFixed(1) : 0}%
+              {(stages[0]?.count || 0) > 0 ? ((stages.find(s => s.stage === 'retained')?.count || 0) / (stages[0]?.count || 1) * 100).toFixed(1) : 0}%
             </p>
             <p className="text-xs text-gray-400 mt-1">Retention Rate</p>
           </div>
           <div>
             <p className="text-2xl font-bold metric-number text-amber-400">
-              {stages.find(s => s.stage === 'active')?.count ? 
-                ((stages.find(s => s.stage === 'at_risk')?.count || 0) / stages.find(s => s.stage === 'active')!.count * 100).toFixed(1) : 0}%
+              {(stages.find(s => s.stage === 'active')?.count || 0) > 0 ? 
+                ((stages.find(s => s.stage === 'at_risk')?.count || 0) / (stages.find(s => s.stage === 'active')?.count || 1) * 100).toFixed(1) : 0}%
             </p>
             <p className="text-xs text-gray-400 mt-1">At-Risk Rate</p>
           </div>
           <div>
             <p className="text-2xl font-bold metric-number text-red-400">
-              {stages[0].count > 0 ? ((stages.find(s => s.stage === 'dropped')?.count || 0) / stages[0].count * 100).toFixed(1) : 0}%
+              {(stages[0]?.count || 0) > 0 ? ((stages.find(s => s.stage === 'dropped')?.count || 0) / (stages[0]?.count || 1) * 100).toFixed(1) : 0}%
             </p>
             <p className="text-xs text-gray-400 mt-1">Dropout Rate</p>
           </div>

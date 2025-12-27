@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { usePrograms } from '@/hooks/usePrograms';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AddStudentModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface AddStudentModalProps {
 
 export function AddStudentModal({ isOpen, onClose, onSuccess }: AddStudentModalProps) {
   const { programs } = usePrograms();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -39,13 +41,19 @@ export function AddStudentModal({ isOpen, onClose, onSuccess }: AddStudentModalP
         country: formData.country,
         stage: formData.stage,
         program_id: formData.program_id || null,
+        university_id: profile?.university_id,
         engagement_score: 50,
         risk_score: 0,
         last_activity: new Date().toISOString(),
         tags: ['new-lead']
       });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === '23505' || insertError.message?.includes('unique constraint')) {
+          throw new Error('A student with this email already exists in your university.');
+        }
+        throw insertError;
+      }
 
       setFormData({
         name: '',

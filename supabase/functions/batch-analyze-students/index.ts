@@ -116,6 +116,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+    
+    const { universityId } = body;
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('VITE_SUPABASE_ANON_KEY');
 
@@ -129,9 +138,16 @@ Deno.serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
-    const { data: students, error: studentsError } = await supabaseClient
+    let studentsQuery = supabaseClient
       .from('students')
       .select('*');
+    
+    // Filter by university if provided
+    if (universityId) {
+      studentsQuery = studentsQuery.eq('university_id', universityId);
+    }
+    
+    const { data: students, error: studentsError } = await studentsQuery;
 
     if (studentsError) {
       return new Response(
@@ -168,7 +184,8 @@ Deno.serve(async (req) => {
               description: `${student.name}: ${analysis.reasoning}`,
               student_id: student.id,
               recommendations: analysis.recommendations,
-              read: false
+              read: false,
+              university_id: student.university_id
             });
           }
         }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { sendAIChatMessage } from '@/lib/ai';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -13,6 +14,8 @@ interface Message {
 }
 
 export function AIChatbot() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -50,7 +53,8 @@ export function AIChatbot() {
     try {
       const data = await sendAIChatMessage(
         input.trim(),
-        messages.map(m => ({ role: m.role, content: m.content }))
+        messages.map(m => ({ role: m.role, content: m.content })),
+        universityId
       );
 
       const assistantMessage: Message = {
@@ -100,7 +104,8 @@ export function AIChatbot() {
     try {
       const data = await sendAIChatMessage(
         action,
-        messages.map(m => ({ role: m.role, content: m.content }))
+        messages.map(m => ({ role: m.role, content: m.content })),
+        universityId
       );
 
       const assistantMessage: Message = {

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Metric = {
   label: string;
@@ -9,34 +10,24 @@ type Metric = {
 };
 
 export function useMetrics() {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchMetrics();
-
-    const channel = supabase
-      .channel('metrics-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
-        fetchMetrics();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_alerts' }, () => {
-        fetchMetrics();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function fetchMetrics() {
+  const fetchMetrics = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
 
-      const { data: students } = await supabase.from('students').select('stage, risk_score, engagement_score');
-      const { count: alertsCount } = await supabase.from('ai_alerts').select('*', { count: 'exact', head: true }).eq('read', false);
+      const { data: students } = await supabase.from('students').select('stage, risk_score, engagement_score').eq('university_id', universityId);
+      const { count: alertsCount } = await supabase.from('ai_alerts').select('*', { count: 'exact', head: true }).eq('university_id', universityId).eq('read', false);
 
       const studentList = students || [];
       const leads = studentList.filter(s => s.stage === 'lead').length;
@@ -61,7 +52,25 @@ export function useMetrics() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [universityId]);
+
+  useEffect(() => {
+    fetchMetrics();
+
+    const channel = supabase
+      .channel(`metrics-changes-${universityId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
+        fetchMetrics();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_alerts' }, () => {
+        fetchMetrics();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [universityId, fetchMetrics]);
 
   return { metrics, loading, error, refetch: fetchMetrics };
 }

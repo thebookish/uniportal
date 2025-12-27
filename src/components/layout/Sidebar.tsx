@@ -13,7 +13,8 @@ import {
   FileText,
   ClipboardList,
   Inbox,
-  Target
+  Target,
+  Link2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +39,7 @@ const allNavigationItems = [
   { id: 'communications', label: 'Communications', icon: MessageSquare, roles: ['super_admin', 'admissions', 'student_success'] },
   { id: 'reports', label: 'Reports (Growth)', icon: BarChart3, roles: ['super_admin', 'academic_manager'] },
   { id: 'automation', label: 'Automation', icon: Workflow, roles: ['super_admin', 'admissions'] },
+  { id: 'integrations', label: 'Integrations', icon: Link2, roles: ['super_admin'] },
   { id: 'counselors', label: 'Counselors', icon: Users, roles: ['super_admin', 'admissions'] },
 ];
 

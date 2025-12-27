@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Counselor = {
   id: string;
   name: string;
   email: string;
   role: string;
+  university_id: string | null;
   created_at: string;
   assignedStudents: number;
   capacity: number;
@@ -14,34 +16,25 @@ type Counselor = {
 };
 
 export function useCounselors() {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchCounselors();
-
-    const channel = supabase
-      .channel('counselors-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        fetchCounselors();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
-        fetchCounselors();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function fetchCounselors() {
+  const fetchCounselors = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const { data: users, error: fetchError } = await supabase
         .from('users')
         .select('*')
+        .eq('university_id', universityId)
         .in('role', ['admissions', 'student_success']);
 
       if (fetchError) throw fetchError;
@@ -51,12 +44,14 @@ export function useCounselors() {
           const { count: assignedCount } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
-            .eq('counselor_id', user.id);
+            .eq('counselor_id', user.id)
+            .eq('university_id', universityId);
 
           const { count: convertedCount } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
             .eq('counselor_id', user.id)
+            .eq('university_id', universityId)
             .in('stage', ['active', 'enrollment', 'acceptance']);
 
           const conversionRate = assignedCount && assignedCount > 0 
@@ -79,7 +74,25 @@ export function useCounselors() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [universityId]);
+
+  useEffect(() => {
+    fetchCounselors();
+
+    const channel = supabase
+      .channel(`counselors-changes-${universityId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchCounselors();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
+        fetchCounselors();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [universityId, fetchCounselors]);
 
   return { counselors, loading, error, refetch: fetchCounselors };
 }

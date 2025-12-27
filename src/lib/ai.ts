@@ -89,10 +89,10 @@ export async function getAIStatus() {
   }
 }
 
-export async function sendAIChatMessage(message: string, conversationHistory?: any[]) {
+export async function sendAIChatMessage(message: string, conversationHistory?: any[], universityId?: string) {
   try {
     const { data, error } = await supabase.functions.invoke('supabase-functions-ai-chat', {
-      body: { message, conversationHistory }
+      body: { message, conversationHistory, universityId }
     });
 
     if (error) {

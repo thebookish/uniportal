@@ -8,6 +8,7 @@ import { AIIntelligenceView } from './views/AIIntelligenceView';
 import { ReportsView } from './views/ReportsView';
 import { CommunicationsView } from './views/CommunicationsView';
 import { AutomationView } from './views/AutomationView';
+import { IntegrationsView } from './views/IntegrationsView';
 import { CounselorsView } from './views/CounselorsView';
 import { AdmissionsView } from './views/AdmissionsView';
 import { StudentSuccessView } from './views/StudentSuccessView';
@@ -15,6 +16,7 @@ import { OnboardingView } from './views/OnboardingView';
 import { LeadInboxView } from './views/LeadInboxView';
 import { CourseFitView } from './views/CourseFitView';
 import { PlaceholderView } from './views/PlaceholderView';
+import { SettingsView } from './views/SettingsView';
 import { StudentDetailPanel } from './students/StudentDetailPanel';
 import { SearchModal } from './modals/SearchModal';
 import { NotificationsPanel } from './modals/NotificationsPanel';
@@ -69,6 +71,8 @@ export function Portal() {
         return <ReportsView />;
       case 'automation':
         return <AutomationView />;
+      case 'integrations':
+        return <IntegrationsView />;
       case 'counselors':
         return <CounselorsView />;
       case 'admissions':
@@ -82,13 +86,7 @@ export function Portal() {
       case 'course-fit':
         return <CourseFitView onStudentClick={handleStudentClick} />;
       case 'settings':
-        return (
-          <PlaceholderView
-            title="Settings"
-            description="Configure your portal preferences and integrations"
-            icon={Settings}
-          />
-        );
+        return <SettingsView />;
       default:
         return <DashboardView onAlertClick={(alertId) => handleAlertClick(alertId)} />;
     }

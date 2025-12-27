@@ -3,10 +3,12 @@ import { Sparkles, Building2, GraduationCap, Workflow, Users, MessageSquare, Bra
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface SetupWizardProps {
   onComplete: () => void;
+  isSettings?: boolean;
 }
 
 const steps = [
@@ -18,11 +20,14 @@ const steps = [
   { id: 6, title: 'AI Settings', icon: Brain },
 ];
 
-export function SetupWizard({ onComplete }: SetupWizardProps) {
+export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps) {
+  const { profile, university } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [universityData, setUniversityData] = useState({
-    name: '',
+    name: university?.name || '',
     campuses: ['Main Campus'],
     departments: ['Engineering', 'Business', 'Arts & Sciences'],
   });
@@ -45,19 +50,54 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     auto_recommendations_enabled: true
   });
 
+  useEffect(() => {
+    if (university?.name) {
+      setUniversityData(prev => ({ ...prev, name: university.name }));
+    }
+  }, [university]);
+
   async function saveUniversityProfile() {
     setLoading(true);
     try {
-      const { error } = await supabase.from('university_profile').upsert({
+      // Get university ID from profile
+      const uniId = (profile as any)?.university_id;
+      
+      if (!uniId) {
+        console.error('No university ID found in profile:', profile);
+        alert('Unable to save. Please try logging out and back in.');
+        setLoading(false);
+        return;
+      }
+      
+      // Get current settings first
+      const { data: currentUni } = await supabase
+        .from('universities')
+        .select('settings')
+        .eq('id', uniId)
+        .single();
+      
+      const currentSettings = (currentUni?.settings as any) || {};
+      
+      // Update the universities table with the settings
+      const { error } = await supabase.from('universities').update({
         name: universityData.name,
-        campuses: universityData.campuses,
-        departments: universityData.departments,
-        setup_step: 1
-      });
-      if (error) throw error;
+        settings: {
+          ...currentSettings,
+          campuses: universityData.campuses,
+          departments: universityData.departments,
+          setup_step: 1
+        }
+      }).eq('id', uniId);
+      
+      if (error) {
+        console.error('Save error:', error);
+        throw error;
+      }
+      
       setCurrentStep(2);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving university profile:', error);
+      alert('Error saving: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -66,23 +106,42 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   async function savePrograms() {
     setLoading(true);
     try {
+      const uniId = (profile as any)?.university_id;
       const validPrograms = programs.filter(p => p.name && p.department);
-      if (validPrograms.length > 0) {
+      
+      if (validPrograms.length > 0 && uniId) {
         const { error } = await supabase.from('programs').insert(
           validPrograms.map(p => ({
             name: p.name,
             department: p.department,
             intake_date: p.intake_date || new Date().toISOString().split('T')[0],
             capacity: p.capacity,
-            enrolled: 0
+            enrolled: 0,
+            university_id: uniId
           }))
         );
         if (error) throw error;
       }
-      await supabase.from('university_profile').update({ setup_step: 2 }).neq('id', '');
+      
+      // Get current settings and update
+      if (uniId) {
+        const { data: currentUni } = await supabase
+          .from('universities')
+          .select('settings')
+          .eq('id', uniId)
+          .single();
+        
+        const currentSettings = (currentUni?.settings as any) || {};
+        
+        await supabase.from('universities').update({ 
+          settings: { ...currentSettings, setup_step: 2 } 
+        }).eq('id', uniId);
+      }
+      
       setCurrentStep(3);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving programs:', error);
+      alert('Error saving: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -91,15 +150,23 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   async function saveLifecycleStages() {
     setLoading(true);
     try {
-      const defaultRules = [
-        { name: 'Low Engagement Alert', trigger_type: 'condition_based', trigger_config: { condition: 'engagement_low' }, action_type: 'create_alert', action_config: {}, is_active: true },
-        { name: 'Inactivity Warning', trigger_type: 'condition_based', trigger_config: { condition: 'inactive_7_days' }, action_type: 'create_alert', action_config: {}, is_active: true },
-        { name: 'High Risk Alert', trigger_type: 'condition_based', trigger_config: { condition: 'risk_high' }, action_type: 'create_alert', action_config: {}, is_active: true }
-      ];
-      await supabase.from('automation_rules').insert(defaultRules);
-      await supabase.from('university_profile').update({ setup_step: 3 }).neq('id', '');
+      const uniId = (profile as any)?.university_id;
+      
+      if (uniId) {
+        const defaultRules = [
+          { name: 'Low Engagement Alert', trigger_type: 'condition_based', trigger_config: { condition: 'engagement_low' }, action_type: 'create_alert', action_config: {}, is_active: true, university_id: uniId },
+          { name: 'Inactivity Warning', trigger_type: 'condition_based', trigger_config: { condition: 'inactive_7_days' }, action_type: 'create_alert', action_config: {}, is_active: true, university_id: uniId },
+          { name: 'High Risk Alert', trigger_type: 'condition_based', trigger_config: { condition: 'risk_high' }, action_type: 'create_alert', action_config: {}, is_active: true, university_id: uniId }
+        ];
+        await supabase.from('automation_rules').insert(defaultRules);
+        
+        // Get and update settings
+        const { data: currentUni } = await supabase.from('universities').select('settings').eq('id', uniId).single();
+        const currentSettings = (currentUni?.settings as any) || {};
+        await supabase.from('universities').update({ settings: { ...currentSettings, setup_step: 3 } }).eq('id', uniId);
+      }
       setCurrentStep(4);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving lifecycle stages:', error);
     } finally {
       setLoading(false);
@@ -109,20 +176,28 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   async function saveTeamInvites() {
     setLoading(true);
     try {
+      const uniId = (profile as any)?.university_id;
       const validInvites = teamInvites.filter(i => i.email);
-      if (validInvites.length > 0) {
+      
+      if (validInvites.length > 0 && uniId) {
         const { error } = await supabase.from('team_invitations').insert(
           validInvites.map(i => ({
             email: i.email,
             role: i.role,
-            status: 'pending'
+            status: 'pending',
+            university_id: uniId
           }))
         );
         if (error) throw error;
       }
-      await supabase.from('university_profile').update({ setup_step: 4 }).neq('id', '');
+      
+      if (uniId) {
+        const { data: currentUni } = await supabase.from('universities').select('settings').eq('id', uniId).single();
+        const currentSettings = (currentUni?.settings as any) || {};
+        await supabase.from('universities').update({ settings: { ...currentSettings, setup_step: 4 } }).eq('id', uniId);
+      }
       setCurrentStep(5);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving team invites:', error);
     } finally {
       setLoading(false);
@@ -132,14 +207,28 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   async function saveTemplates() {
     setLoading(true);
     try {
+      const uniId = (profile as any)?.university_id;
       const validTemplates = templates.filter(t => t.name && t.subject && t.body);
-      if (validTemplates.length > 0) {
-        const { error } = await supabase.from('communication_templates').insert(validTemplates);
+      
+      if (validTemplates.length > 0 && uniId) {
+        const { error } = await supabase.from('email_templates').insert(
+          validTemplates.map(t => ({
+            ...t,
+            university_id: uniId,
+            body_html: t.body,
+            category: 'custom'
+          }))
+        );
         if (error) throw error;
       }
-      await supabase.from('university_profile').update({ setup_step: 5 }).neq('id', '');
+      
+      if (uniId) {
+        const { data: currentUni } = await supabase.from('universities').select('settings').eq('id', uniId).single();
+        const currentSettings = (currentUni?.settings as any) || {};
+        await supabase.from('universities').update({ settings: { ...currentSettings, setup_step: 5 } }).eq('id', uniId);
+      }
       setCurrentStep(6);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving templates:', error);
     } finally {
       setLoading(false);
@@ -149,12 +238,37 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   async function saveAISettings() {
     setLoading(true);
     try {
-      const { error } = await supabase.from('ai_settings').upsert(aiSettings);
+      const uniId = (profile as any)?.university_id;
+      
+      if (!uniId) {
+        alert('No university found. Please try logging out and back in.');
+        setLoading(false);
+        return;
+      }
+      
+      // Save AI settings to university settings
+      const { data: currentUni } = await supabase
+        .from('universities')
+        .select('settings')
+        .eq('id', uniId)
+        .single();
+      
+      const currentSettings = (currentUni?.settings as any) || {};
+      
+      const { error } = await supabase.from('universities').update({ 
+        settings: {
+          ...currentSettings,
+          setup_completed: true,
+          setup_step: 6,
+          ai_settings: aiSettings
+        }
+      }).eq('id', uniId);
+      
       if (error) throw error;
-      await supabase.from('university_profile').update({ setup_completed: true, setup_step: 6 }).neq('id', '');
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving AI settings:', error);
+      alert('Error saving: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -710,15 +824,36 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           )}
 
           <div className="flex items-center justify-between mt-8">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
-              className="border-white/10 hover:bg-white/5"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+                disabled={currentStep === 1}
+                className="border-white/10 hover:bg-white/5"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              {!isSettings && (
+                <Button
+                  variant="ghost"
+                  onClick={async () => {
+                    const uniId = (profile as any)?.university_id;
+                    if (uniId) {
+                      const { data: currentUni } = await supabase.from('universities').select('settings').eq('id', uniId).single();
+                      const currentSettings = (currentUni?.settings as any) || {};
+                      await supabase.from('universities').update({ 
+                        settings: { ...currentSettings, setup_completed: true, setup_skipped: true } 
+                      }).eq('id', uniId);
+                    }
+                    onComplete();
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Skip Setup
+                </Button>
+              )}
+            </div>
             <Button
               onClick={handleNext}
               disabled={loading || (currentStep === 1 && !universityData.name)}

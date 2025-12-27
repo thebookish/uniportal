@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Communication = {
   id: string;
@@ -8,31 +9,25 @@ type Communication = {
   subject: string | null;
   message: string;
   status: string;
+  university_id: string | null;
   created_at: string;
   students?: { name: string; email: string } | null;
 };
 
 export function useCommunications() {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchCommunications();
-
-    const channel = supabase
-      .channel('communications-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'communications' }, () => {
-        fetchCommunications();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function fetchCommunications() {
+  const fetchCommunications = useCallback(async () => {
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const { data, error: fetchError } = await supabase
@@ -41,6 +36,7 @@ export function useCommunications() {
           *,
           students(name, email)
         `)
+        .eq('university_id', universityId)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -51,7 +47,22 @@ export function useCommunications() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [universityId]);
+
+  useEffect(() => {
+    fetchCommunications();
+
+    const channel = supabase
+      .channel(`communications-changes-${universityId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'communications' }, () => {
+        fetchCommunications();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [universityId, fetchCommunications]);
 
   return { communications, loading, error, refetch: fetchCommunications };
 }
