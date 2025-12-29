@@ -32,23 +32,37 @@ function AppContent() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('universities')
-        .select('settings')
-        .eq('id', universityId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching university settings:', error);
-        setNeedsSetup(false);
+      // Use university from context if available to avoid extra fetch
+      if (university) {
+        const setupCompleted = (university?.settings as any)?.setup_completed === true;
+        setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
         setCheckingSetup(false);
         return;
       }
-      
-      const setupCompleted = (data?.settings as any)?.setup_completed === true;
-      setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
+
+      // Fallback to fetching if university not in context
+      try {
+        const { data, error } = await supabase
+          .from('universities')
+          .select('settings')
+          .eq('id', universityId)
+          .single();
+        
+        if (error) {
+          console.warn('Error fetching university settings, skipping setup check:', error.message);
+          setNeedsSetup(false);
+          setCheckingSetup(false);
+          return;
+        }
+        
+        const setupCompleted = (data?.settings as any)?.setup_completed === true;
+        setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
+      } catch (fetchError) {
+        console.warn('Network error fetching university, skipping setup check');
+        setNeedsSetup(false);
+      }
     } catch (error) {
-      console.error('Error checking setup:', error);
+      console.warn('Error checking setup:', error);
       setNeedsSetup(false);
     } finally {
       setCheckingSetup(false);
