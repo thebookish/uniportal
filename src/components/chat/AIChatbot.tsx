@@ -207,7 +207,7 @@ export function AIChatbot() {
     return (
       <button
         onClick={() => { setIsOpen(true); setIsFullscreen(true); }}
-        className="fixed bottom-6 right-24 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all group"
+        className="fixed bottom-6 right-6 sm:right-24 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all group"
       >
         <MessageSquare className="w-6 h-6 text-white" />
         {(atRiskCount > 0 || unreadAlerts > 0) && (
@@ -229,24 +229,24 @@ export function AIChatbot() {
       "fixed z-50 bg-[#0A0E14] border border-white/10 shadow-2xl transition-all duration-300",
       isFullscreen 
         ? "inset-0 rounded-none" 
-        : "bottom-6 right-24 w-96 h-[600px] max-h-[80vh] rounded-xl"
+        : "bottom-6 right-6 sm:right-24 w-[calc(100vw-48px)] sm:w-96 h-[70vh] sm:h-[600px] max-h-[80vh] rounded-xl"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20">
-            <Bot className="w-5 h-5 text-purple-400" />
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/10">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20">
+            <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-white text-sm">AI Consultant</h3>
-            <p className="text-xs text-gray-400">Real-time insights & recommendations</p>
+            <h3 className="font-semibold text-white text-xs sm:text-sm">AI Consultant</h3>
+            <p className="text-[10px] sm:text-xs text-gray-400 hidden sm:block">Real-time insights & recommendations</p>
           </div>
-          <Badge className="bg-green-500/20 text-green-400 text-[10px]">LIVE</Badge>
+          <Badge className="bg-green-500/20 text-green-400 text-[10px] hidden sm:inline-flex">LIVE</Badge>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/5 rounded-lg transition-colors hidden sm:block"
             title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >
             {isFullscreen ? (
@@ -343,22 +343,22 @@ export function AIChatbot() {
           {/* Quick Actions */}
           {messages.length <= 2 && !loading && (
             <div className={cn(
-              "px-4 pb-3",
-              isFullscreen && "max-w-4xl mx-auto w-full"
+              "px-3 sm:px-4 pb-3",
+              isFullscreen && "lg:max-w-4xl lg:mx-auto w-full"
             )}>
               <p className="text-xs text-gray-500 mb-2">Quick actions:</p>
-              <div className="flex flex-wrap gap-2">
-                {quickActions.map((action, index) => {
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                {quickActions.slice(0, 4).map((action, index) => {
                   const Icon = action.icon;
                   return (
                     <button
                       key={index}
                       onClick={() => handleQuickAction(action.label)}
                       disabled={loading}
-                      className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 border border-white/5 hover:border-white/10"
+                      className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 border border-white/5 hover:border-white/10"
                     >
-                      <Icon className="w-3.5 h-3.5" />
-                      {action.label}
+                      <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span className="truncate max-w-[100px] sm:max-w-none">{action.label}</span>
                     </button>
                   );
                 })}
@@ -368,22 +368,22 @@ export function AIChatbot() {
 
           {/* Input */}
           <div className={cn(
-            "p-4 border-t border-white/10",
-            isFullscreen && "max-w-4xl mx-auto w-full"
+            "p-3 sm:p-4 border-t border-white/10",
+            isFullscreen && "lg:max-w-4xl lg:mx-auto w-full"
           )}>
             <div className="flex items-center gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask about students, risks, trends, or get recommendations..."
+                placeholder="Ask about students, risks..."
                 className="bg-white/5 border-white/10 text-white text-sm"
                 disabled={loading}
               />
               <Button
                 onClick={sendMessage}
                 disabled={!input.trim() || loading}
-                className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white px-4"
+                className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white px-3 sm:px-4"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -395,9 +395,9 @@ export function AIChatbot() {
           </div>
         </div>
 
-        {/* Right Sidebar - Live Feedback (Fullscreen only) */}
+        {/* Right Sidebar - Live Feedback (Fullscreen only on large screens) */}
         {isFullscreen && (
-          <div className="w-80 border-l border-white/10 flex flex-col">
+          <div className="hidden lg:flex w-80 border-l border-white/10 flex-col">
             {/* Live Metrics */}
             <div className="p-4 border-b border-white/10">
               <div className="flex items-center justify-between mb-3">

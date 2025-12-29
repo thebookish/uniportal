@@ -293,8 +293,56 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
   };
 
   return (
-    <div className="min-h-screen bg-[#111827] flex">
-      <div className="w-64 bg-[#1a1f2e] border-r border-white/10 p-6">
+    <div className="min-h-screen bg-[#111827] flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-[#1a1f2e] border-b border-white/10 p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-white">WorldLynk</h1>
+            <p className="text-xs text-gray-400">Setup Wizard</p>
+          </div>
+        </div>
+        {/* Mobile Step Indicators */}
+        <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            const isActive = currentStep === step.id;
+            const isCompleted = currentStep > step.id;
+
+            return (
+              <div
+                key={step.id}
+                className={cn(
+                  "flex flex-col items-center min-w-[50px] px-1",
+                  isActive && "text-orange-400",
+                  isCompleted && "text-green-400",
+                  !isActive && !isCompleted && "text-gray-500"
+                )}
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center mb-1",
+                  isActive && "bg-orange-500/20 border border-orange-500/30",
+                  isCompleted && "bg-green-500/20",
+                  !isActive && !isCompleted && "bg-white/5"
+                )}>
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <Icon className={cn("w-4 h-4", isActive ? "text-orange-400" : "text-gray-500")} />
+                  )}
+                </div>
+                <span className="text-[10px] text-center leading-tight">{step.title}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block w-64 bg-[#1a1f2e] border-r border-white/10 p-6">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
             <Sparkles className="w-6 h-6 text-white" />
@@ -346,7 +394,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
         </div>
       </div>
 
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
         <div className="max-w-2xl mx-auto">
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -473,7 +521,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs text-gray-400 mb-1">Program Name</label>
                         <Input
@@ -593,7 +641,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
               <div className="space-y-4">
                 {teamInvites.map((invite, idx) => (
                   <div key={idx} className="glass-card p-4">
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-400 mb-1">Email</label>
                         <Input
@@ -608,7 +656,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
                           className="bg-white/5 border-white/10 text-white"
                         />
                       </div>
-                      <div className="w-48">
+                      <div className="w-full sm:w-48">
                         <label className="block text-xs text-gray-400 mb-1">Role</label>
                         <select
                           value={invite.role}
@@ -632,7 +680,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
                           variant="ghost"
                           size="icon"
                           onClick={() => setTeamInvites(teamInvites.filter((_, i) => i !== idx))}
-                          className="mt-5"
+                          className="sm:mt-5 self-end"
                         >
                           <X className="w-4 h-4 text-gray-400" />
                         </Button>
@@ -674,7 +722,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs text-gray-400 mb-1">Template Name</label>
                         <Input
@@ -755,7 +803,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
               <div className="glass-card p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-4">Risk Thresholds</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-400 mb-2">High Risk Threshold</label>
                       <Input
@@ -781,7 +829,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
 
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-4">Engagement Settings</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-400 mb-2">Low Engagement Threshold</label>
                       <Input
@@ -830,13 +878,13 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-8">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mt-8">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
                 disabled={currentStep === 1}
-                className="border-white/10 hover:bg-white/5"
+                className="border-white/10 hover:bg-white/5 order-2 sm:order-1"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
@@ -855,7 +903,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
                     }
                     onComplete();
                   }}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white order-3 sm:order-2"
                 >
                   Skip Setup
                 </Button>
@@ -864,7 +912,7 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
             <Button
               onClick={handleNext}
               disabled={loading || (currentStep === 1 && !universityData.name)}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-orange-500 hover:bg-orange-600 text-white order-1 sm:order-3"
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>

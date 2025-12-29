@@ -217,25 +217,25 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
               </Badge>
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <p className="text-xs text-gray-400 mb-1">Risk Score</p>
-                <p className={cn("text-2xl font-bold metric-number", getRiskColor(student.risk_score))}>
+                <p className={cn("text-xl sm:text-2xl font-bold metric-number", getRiskColor(student.risk_score))}>
                   {student.risk_score}%
                 </p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 mb-1">Days Until Breach</p>
                 <p className={cn(
-                  "text-2xl font-bold metric-number",
+                  "text-xl sm:text-2xl font-bold metric-number",
                   student.risk_score >= 70 ? "text-red-400" : "text-amber-400"
                 )}>
                   {Math.max(1, Math.floor(14 - (Date.now() - new Date(student.last_activity).getTime()) / (1000 * 60 * 60 * 24)))}
                 </p>
               </div>
-              <div>
+              <div className="col-span-2 sm:col-span-1">
                 <p className="text-xs text-gray-400 mb-1">Last Safe Window</p>
-                <p className="text-2xl font-bold metric-number text-orange-400">
+                <p className="text-xl sm:text-2xl font-bold metric-number text-orange-400">
                   {Math.max(1, Math.floor(7 - (Date.now() - new Date(student.last_activity).getTime()) / (1000 * 60 * 60 * 24)))} days
                 </p>
               </div>

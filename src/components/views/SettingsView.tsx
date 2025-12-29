@@ -886,9 +886,9 @@ export function SettingsView() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-        <Settings className="w-7 h-7 text-orange-400" />
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+        <Settings className="w-6 h-6 md:w-7 md:h-7 text-orange-400" />
         Settings
       </h1>
 
@@ -898,31 +898,34 @@ export function SettingsView() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="glass-card p-4">
-          {settingsSections.map((section) => {
-            const Icon = section.icon;
-            const isActive = activeSection === section.id;
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-lg mb-1",
-                  isActive
-                    ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm">{section.title}</span>
-                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-              </button>
-            );
-          })}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* Mobile: Horizontal scrollable tabs */}
+        <div className="glass-card p-3 md:p-4 lg:block">
+          <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
+            {settingsSections.map((section) => {
+              const Icon = section.icon;
+              const isActive = activeSection === section.id;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={cn(
+                    "flex items-center gap-2 md:gap-3 px-3 py-2 rounded-lg whitespace-nowrap lg:w-full lg:mb-1",
+                    isActive
+                      ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
+                      : "text-gray-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <Icon className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                  <span className="text-xs md:text-sm">{section.title}</span>
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto hidden lg:block" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="lg:col-span-3 glass-card p-6">{renderContent()}</div>
+        <div className="lg:col-span-3 glass-card p-4 md:p-6">{renderContent()}</div>
       </div>
     </div>
   );
