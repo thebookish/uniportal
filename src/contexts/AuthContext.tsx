@@ -175,9 +175,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables.');
     }
     try {
+      // First check if user already exists in the users table
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (existingUser) {
+        throw new Error('An account with this email already exists. Please sign in instead.');
+      }
+
+      // Use the deployed URL for email confirmation redirect
+      const siteUrl = window.location.origin;
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${siteUrl}/`,
+        }
       });
       if (error) throw error;
 
@@ -201,11 +218,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: role as any,
           university_id: newUniversity.id
         });
-        if (profileError) throw profileError;
+        if (profileError) {
+          // Handle duplicate email error
+          if (profileError.message?.includes('duplicate key') || profileError.code === '23505') {
+            throw new Error('An account with this email already exists. Please sign in instead.');
+          }
+          throw profileError;
+        }
       }
     } catch (err: any) {
       if (err?.message?.includes('Failed to fetch')) {
         throw new Error('Network error. Please check your internet connection and try again.');
+      }
+      if (err?.message?.includes('duplicate key') || err?.code === '23505') {
+        throw new Error('An account with this email already exists. Please sign in instead.');
       }
       throw err;
     }

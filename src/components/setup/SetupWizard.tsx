@@ -213,13 +213,18 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
       if (validTemplates.length > 0 && uniId) {
         const { error } = await supabase.from('email_templates').insert(
           validTemplates.map(t => ({
-            ...t,
             university_id: uniId,
+            name: t.name,
+            subject: t.subject,
             body_html: t.body,
+            body_text: t.body,
             category: 'custom'
           }))
         );
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting templates:', error);
+          // Don't block progression if template insert fails
+        }
       }
       
       if (uniId) {
@@ -230,6 +235,8 @@ export function SetupWizard({ onComplete, isSettings = false }: SetupWizardProps
       setCurrentStep(6);
     } catch (error: any) {
       console.error('Error saving templates:', error);
+      // Still proceed to next step even if there's an error
+      setCurrentStep(6);
     } finally {
       setLoading(false);
     }
