@@ -116,49 +116,100 @@ ${atRiskStudents.length > 0 ? `\n⚠️ **Immediate Attention:**\n${atRiskStuden
       return buildResponse(fallbackResponse);
     }
 
-    const systemPrompt = `You are the AI command center for WorldLynk University Admin Portal. You have FULL ACCESS to the database and can:
+    // Calculate additional insights
+    const conversionRate = students.length > 0 
+      ? ((students.filter(s => s.stage === 'active' || s.stage === 'enrollment').length / students.length) * 100).toFixed(1)
+      : 0;
+    
+    const avgEngagement = students.length > 0
+      ? (students.reduce((sum, s) => sum + (s.engagement_score || 0), 0) / students.length).toFixed(1)
+      : 0;
 
-1. ANALYZE students, risks, engagement, and performance
-2. RECOMMEND interventions and actions
-3. MONITOR alerts and priorities
-4. GUIDE admins on best practices
-5. GENERATE reports and insights
+    const avgRisk = students.length > 0
+      ? (students.reduce((sum, s) => sum + (s.risk_score || 0), 0) / students.length).toFixed(1)
+      : 0;
 
-CURRENT DATABASE STATE (REAL-TIME):
-=====================================
-STUDENTS: ${students.length} total
-- Critical Risk (≥70%): ${atRiskStudents.length}
-- Warning (40-69%): ${warningStudents.length}
-- Low Engagement (<40): ${lowEngagement.length}
+    const countryDistribution = students.reduce((acc: any, s) => {
+      const country = s.country || 'Unknown';
+      acc[country] = (acc[country] || 0) + 1;
+      return acc;
+    }, {});
 
-STAGE DISTRIBUTION:
-${Object.entries(stageCount).map(([stage, count]) => `- ${stage}: ${count} students`).join('\n')}
+    const topCountries = Object.entries(countryDistribution)
+      .sort((a: any, b: any) => b[1] - a[1])
+      .slice(0, 5);
 
-PROGRAMS: ${programs.length}
-${programs.slice(0, 10).map(p => `- ${p.name}: ${p.enrolled || 0}/${p.capacity || 0} capacity`).join('\n')}
+    const recentActivity = students
+      .filter(s => s.last_activity)
+      .sort((a, b) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime())
+      .slice(0, 5);
 
-COUNSELORS: ${counselors.length}
-${counselors.map(c => `- ${c.name}: ${students.filter(s => s.counselor_id === c.id).length} students assigned`).join('\n') || 'No counselors'}
+    const systemPrompt = `You are an expert AI CONSULTANT for WorldLynk University Admin Portal - acting as a strategic advisor for student success and enrollment optimization. You have REAL-TIME ACCESS to the complete database.
 
-ACTIVE ALERTS: ${unreadAlerts.length}
-${unreadAlerts.slice(0, 5).map(a => `- [${a.severity?.toUpperCase()}] ${a.title}`).join('\n') || 'No active alerts'}
+YOUR ROLE:
+==========
+- Proactive advisor providing actionable insights
+- Risk analyst predicting and preventing dropouts  
+- Enrollment strategist optimizing conversion funnels
+- Student success optimizer recommending interventions
+- Data analyst identifying patterns and trends
 
-AT-RISK STUDENTS (Top 10):
-${atRiskStudents.slice(0, 10).map(s => `- ${s.name} (${s.email}): Risk=${s.risk_score}%, Engagement=${s.engagement_score}%, Stage=${s.stage}, Country=${s.country || 'N/A'}`).join('\n') || 'None'}
+LIVE DATABASE STATE (REAL-TIME):
+================================
+📊 STUDENT OVERVIEW: ${students.length} total students
+   • Critical Risk (≥70%): ${atRiskStudents.length} students
+   • Warning (40-69%): ${warningStudents.length} students  
+   • Low Engagement (<40): ${lowEngagement.length} students
+   • Average Engagement Score: ${avgEngagement}%
+   • Average Risk Score: ${avgRisk}%
+   • Conversion Rate: ${conversionRate}%
 
-ONBOARDING TASKS: ${tasks.length} total, ${tasks.filter(t => t.status === 'completed').length} completed
+📈 FUNNEL DISTRIBUTION:
+${Object.entries(stageCount).map(([stage, count]) => `   • ${stage}: ${count} (${((count as number)/Math.max(students.length,1)*100).toFixed(0)}%)`).join('\n')}
 
-INSTRUCTIONS:
-- Be concise and actionable
-- Reference specific data and numbers
-- Suggest specific interventions
-- Identify patterns and trends
-- Prioritize critical issues`;
+🎓 PROGRAMS (${programs.length} total):
+${programs.slice(0, 8).map(p => `   • ${p.name}: ${p.enrolled || 0}/${p.capacity || 0} (${Math.round(((p.enrolled || 0)/(p.capacity || 1))*100)}% capacity)`).join('\n')}
+
+👥 COUNSELOR WORKLOAD:
+${counselors.map(c => {
+  const assigned = students.filter(s => s.counselor_id === c.id).length;
+  const atRisk = students.filter(s => s.counselor_id === c.id && (s.risk_score || 0) >= 70).length;
+  return `   • ${c.name}: ${assigned} students (${atRisk} at-risk)`;
+}).join('\n') || '   No counselors assigned'}
+
+🚨 ACTIVE ALERTS (${unreadAlerts.length} unread):
+${unreadAlerts.slice(0, 5).map(a => `   • [${(a.severity || 'INFO').toUpperCase()}] ${a.title}`).join('\n') || '   No active alerts'}
+
+⚠️ PRIORITY STUDENTS (Highest Risk):
+${atRiskStudents.slice(0, 8).map(s => `   • ${s.name}: Risk ${s.risk_score}%, Engagement ${s.engagement_score}%, Stage: ${s.stage}`).join('\n') || '   None identified'}
+
+🌍 GEOGRAPHIC DISTRIBUTION:
+${topCountries.map(([country, count]) => `   • ${country}: ${count} students`).join('\n')}
+
+📋 ONBOARDING: ${tasks.filter(t => t.status === 'completed').length}/${tasks.length} tasks completed
+
+CONSULTANT GUIDELINES:
+=====================
+1. Always provide SPECIFIC, ACTIONABLE recommendations
+2. Reference EXACT numbers and student names when relevant
+3. Prioritize URGENT issues (critical risk students first)
+4. Suggest INTERVENTIONS with expected outcomes
+5. Identify PATTERNS and trends proactively
+6. Consider WORKLOAD balance when recommending assignments
+7. Track CONVERSION funnel bottlenecks
+8. Recommend PROACTIVE outreach before issues escalate
+9. Use emojis for visual clarity and urgency indicators
+10. End responses with 2-3 immediate ACTION ITEMS
+
+RESPONSE FORMAT:
+- Start with a brief situation summary
+- Provide detailed analysis with data
+- Conclude with specific action items`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
       ...(conversationHistory || []).slice(-10),
-      { role: 'user', content: message || 'Give me a status overview' }
+      { role: 'user', content: message || 'Give me a comprehensive status overview with recommendations' }
     ];
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -171,24 +222,64 @@ INSTRUCTIONS:
         model: 'gpt-4o-mini',
         messages,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
       console.error('OpenAI error:', errText);
-      return buildResponse(`📊 **Fallback Mode** (OpenAI temporarily unavailable)
+      return buildResponse(`📊 **Consultant Mode** (Fallback Analysis)
 
-**Students:** ${students.length} | At-Risk: ${atRiskStudents.length} | Alerts: ${unreadAlerts.length}
+**Current Status:**
+• Total Students: ${students.length}
+• At-Risk (≥70%): ${atRiskStudents.length}
+• Warning (40-69%): ${warningStudents.length}
+• Unread Alerts: ${unreadAlerts.length}
 
-${atRiskStudents.length > 0 ? `**Priority:**\n${atRiskStudents.slice(0, 3).map(s => `• ${s.name}: ${s.risk_score}% risk`).join('\n')}` : '✅ No critical issues'}`);
+**Funnel Analysis:**
+${Object.entries(stageCount).map(([k, v]) => `• ${k}: ${v}`).join('\n')}
+
+${atRiskStudents.length > 0 ? `**⚠️ Immediate Priorities:**
+${atRiskStudents.slice(0, 5).map(s => `• ${s.name}: ${s.risk_score}% risk, ${s.engagement_score}% engagement`).join('\n')}
+
+**Recommended Actions:**
+1. Contact high-risk students within 24 hours
+2. Review engagement patterns for warning-level students
+3. Schedule intervention meetings` : '✅ No critical students identified'}
+
+*Full AI capabilities available with OpenAI configuration.*`);
     }
 
     const data = await response.json();
     const aiResponse = data.choices?.[0]?.message?.content || 'Unable to generate response';
 
-    return buildResponse(aiResponse);
+    // Generate dynamic recommendations based on data
+    const recommendations: string[] = [];
+    if (atRiskStudents.length > 0) {
+      recommendations.push(`Contact ${atRiskStudents.slice(0, 3).map(s => s.name).join(', ')} immediately`);
+    }
+    if (lowEngagement.length > 3) {
+      recommendations.push(`Review ${lowEngagement.length} low-engagement students for intervention`);
+    }
+    if (unreadAlerts.length > 5) {
+      recommendations.push(`Process ${unreadAlerts.length} pending alerts`);
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        response: aiResponse,
+        context: { 
+          totalStudents: students.length, 
+          atRisk: atRiskStudents.length, 
+          alerts: unreadAlerts.length,
+          programs: programs.length,
+          counselors: counselors.length
+        },
+        recommendations
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error: any) {
     console.error('AI Chat error:', error);
     return new Response(

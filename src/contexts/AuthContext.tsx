@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 
 type UserProfile = Database['public']['Tables']['users']['Row'] & { university_id?: string };
@@ -34,6 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip auth initialization if Supabase is not configured
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -42,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((err) => {
+      console.warn('Failed to get session:', err);
+      setLoading(false);
     });
 
     const {
@@ -144,41 +153,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables.');
+    }
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      if (err?.message?.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      }
+      throw err;
+    }
   }
 
   async function signUp(email: string, password: string, name: string, role: string, universityName?: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
-
-    if (data.user) {
-      // Create a new university for this user
-      const { data: newUniversity, error: uniError } = await supabase
-        .from('universities')
-        .insert({
-          name: universityName || `${name}'s University`,
-          domain: email.split('@')[1]
-        })
-        .select()
-        .single();
-      
-      if (uniError) throw uniError;
-
-      const { error: profileError } = await supabase.from('users').insert({
-        auth_id: data.user.id,
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables.');
+    }
+    try {
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        role: role as any,
-        university_id: newUniversity.id
+        password,
       });
-      if (profileError) throw profileError;
+      if (error) throw error;
+
+      if (data.user) {
+        // Create a new university for this user
+        const { data: newUniversity, error: uniError } = await supabase
+          .from('universities')
+          .insert({
+            name: universityName || `${name}'s University`,
+            domain: email.split('@')[1]
+          })
+          .select()
+          .single();
+        
+        if (uniError) throw uniError;
+
+        const { error: profileError } = await supabase.from('users').insert({
+          auth_id: data.user.id,
+          email,
+          name,
+          role: role as any,
+          university_id: newUniversity.id
+        });
+        if (profileError) throw profileError;
+      }
+    } catch (err: any) {
+      if (err?.message?.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      }
+      throw err;
     }
   }
 

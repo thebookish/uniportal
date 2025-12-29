@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { Portal } from './components/Portal';
 import { SetupWizard } from './components/setup/SetupWizard';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 function AppContent() {
@@ -14,7 +14,7 @@ function AppContent() {
 
   useEffect(() => {
     // Check if environment variables are set
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured) {
       setEnvError(true);
       setCheckingSetup(false);
       return;
@@ -83,10 +83,18 @@ function AppContent() {
         <div className="text-center max-w-lg p-8">
           <h1 className="text-2xl font-bold text-red-400 mb-4">Configuration Error</h1>
           <p className="text-gray-300 mb-4">Missing Supabase environment variables.</p>
-          <div className="text-left bg-black/30 p-4 rounded-lg text-sm">
+          <div className="text-left bg-black/30 p-4 rounded-lg text-sm mb-4">
             <p className="text-gray-400 mb-2">Add these to your Vercel Environment Variables:</p>
-            <code className="text-cyan-400 block">VITE_SUPABASE_URL</code>
-            <code className="text-cyan-400 block">VITE_SUPABASE_ANON_KEY</code>
+            <code className="text-cyan-400 block">VITE_SUPABASE_URL = your-project-url</code>
+            <code className="text-cyan-400 block">VITE_SUPABASE_ANON_KEY = your-anon-key</code>
+          </div>
+          <div className="text-left bg-black/30 p-4 rounded-lg text-sm">
+            <p className="text-gray-400 mb-2">Steps:</p>
+            <ol className="text-gray-400 text-xs space-y-1 list-decimal list-inside">
+              <li>Go to Vercel Dashboard → Your Project → Settings → Environment Variables</li>
+              <li>Add both variables for Production, Preview, and Development</li>
+              <li>Redeploy your project</li>
+            </ol>
           </div>
         </div>
       </div>
