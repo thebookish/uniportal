@@ -13,11 +13,21 @@ import {
   Plus,
   X,
   Trash2,
+  Mail,
+  UserX,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -83,6 +93,20 @@ export function SettingsView() {
 
   // Team members
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [newInvite, setNewInvite] = useState({ 
+    email: "", 
+    name: "", 
+    role: "admissions",
+    permissions: {
+      dashboard: true,
+      students: true,
+      admissions: true,
+      communications: false,
+      reports: false,
+      settings: false,
+    }
+  });
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   // Templates
   const [templates, setTemplates] = useState<any[]>([]);
@@ -318,6 +342,67 @@ export function SettingsView() {
     }
   }
 
+  async function sendInvitation() {
+    if (!universityId || !newInvite.email || !newInvite.name) return;
+    setLoading(true);
+    try {
+      // Create user with permissions
+      const { error } = await supabase.from("users").insert({
+        name: newInvite.name,
+        email: newInvite.email,
+        role: newInvite.role,
+        auth_id: crypto.randomUUID(), // Placeholder
+        university_id: universityId,
+        permissions: newInvite.permissions,
+      });
+      
+      if (error) throw error;
+      
+      setNewInvite({ 
+        email: "", 
+        name: "", 
+        role: "admissions",
+        permissions: {
+          dashboard: true,
+          students: true,
+          admissions: true,
+          communications: false,
+          reports: false,
+          settings: false,
+        }
+      });
+      setShowInviteModal(false);
+      fetchAllData();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      console.error("Error sending invitation:", err);
+      alert(err.message || "Error sending invitation");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteTeamMember(id: string) {
+    if (!confirm("Remove this team member?")) return;
+    try {
+      await supabase.from("users").delete().eq("id", id);
+      fetchAllData();
+    } catch (err) {
+      console.error("Error deleting team member:", err);
+    }
+  }
+
+  function togglePermission(key: string) {
+    setNewInvite({
+      ...newInvite,
+      permissions: {
+        ...newInvite.permissions,
+        [key]: !newInvite.permissions[key as keyof typeof newInvite.permissions],
+      }
+    });
+  }
+
   function addCampus() {
     setUniversityData({
       ...universityData,
@@ -513,26 +598,144 @@ export function SettingsView() {
       case "team":
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-white">Team Members ({teamMembers.length})</h3>
-            {teamMembers.length === 0 ? (
-              <p className="text-gray-400">No team members yet</p>
-            ) : (
-              teamMembers.map((member) => (
-                <div key={member.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
-                      <span className="text-orange-400 font-medium">{member.name?.[0]?.toUpperCase() || "?"}</span>
-                    </div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Team Members ({teamMembers.length})</h3>
+              <Button onClick={() => setShowInviteModal(true)} className="bg-orange-500 hover:bg-orange-600">
+                <Mail className="w-4 h-4 mr-2" /> Invite Member
+              </Button>
+            </div>
+
+            {showInviteModal && (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+                <div className="bg-[#0A0E14] border border-white/10 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-semibold text-white">Invite Team Member</h3>
+                    <Button variant="ghost" size="icon" onClick={() => setShowInviteModal(false)}>
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-white font-medium">{member.name}</p>
-                      <p className="text-sm text-gray-400">{member.email}</p>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                      <Input
+                        value={newInvite.name}
+                        onChange={(e) => setNewInvite({ ...newInvite, name: e.target.value })}
+                        placeholder="Full name"
+                        className="bg-white/5 border-white/10 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                      <Input
+                        type="email"
+                        value={newInvite.email}
+                        onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
+                        placeholder="email@university.edu"
+                        className="bg-white/5 border-white/10 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                      <Select value={newInvite.role} onValueChange={(value) => setNewInvite({ ...newInvite, role: value })}>
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admissions">Admissions Officer</SelectItem>
+                          <SelectItem value="student_success">Student Success Team</SelectItem>
+                          <SelectItem value="marketing">Marketing Team</SelectItem>
+                          <SelectItem value="international_office">International Office</SelectItem>
+                          <SelectItem value="academic_manager">Academic Manager</SelectItem>
+                          <SelectItem value="finance">Finance Team</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">
+                        <Shield className="w-4 h-4 inline mr-1" />
+                        Access Permissions
+                      </label>
+                      <div className="space-y-3 bg-white/5 p-4 rounded-lg border border-white/10">
+                        {[
+                          { key: 'dashboard', label: 'Dashboard & Analytics' },
+                          { key: 'students', label: 'Student Management' },
+                          { key: 'admissions', label: 'Admissions & Offers' },
+                          { key: 'communications', label: 'Communications Center' },
+                          { key: 'reports', label: 'Reports & Exports' },
+                          { key: 'settings', label: 'Settings & Configuration' },
+                        ].map((perm) => (
+                          <div key={perm.key} className="flex items-center justify-between">
+                            <span className="text-gray-300 text-sm">{perm.label}</span>
+                            <Switch
+                              checked={newInvite.permissions[perm.key as keyof typeof newInvite.permissions]}
+                              onCheckedChange={() => togglePermission(perm.key)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <Button 
+                        onClick={sendInvitation} 
+                        disabled={loading || !newInvite.email || !newInvite.name} 
+                        className="flex-1 bg-orange-500 hover:bg-orange-600"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
+                        Send Invitation
+                      </Button>
+                      <Button variant="ghost" onClick={() => setShowInviteModal(false)} className="text-gray-400">
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                  <Badge className="bg-cyan-500/20 text-cyan-400">{member.role}</Badge>
                 </div>
-              ))
+              </div>
             )}
-            <p className="text-sm text-gray-400">To invite new team members, go to the Counselors view and add them there.</p>
+
+            <div className="space-y-3">
+              {teamMembers.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No team members yet. Invite your first member to get started.</p>
+              ) : (
+                teamMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                        <span className="text-orange-400 font-medium">{member.name?.[0]?.toUpperCase() || "?"}</span>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{member.name}</p>
+                        <p className="text-sm text-gray-400">{member.email}</p>
+                        {member.permissions && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {Object.entries(member.permissions).filter(([_, v]) => v).map(([k]) => (
+                              <span key={k} className="text-xs px-2 py-0.5 bg-cyan-500/10 text-cyan-400 rounded">
+                                {k}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-cyan-500/20 text-cyan-400">{member.role}</Badge>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => deleteTeamMember(member.id)} 
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <UserX className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         );
 

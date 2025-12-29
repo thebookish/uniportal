@@ -10,8 +10,16 @@ function AppContent() {
   const { user, profile, university, loading } = useAuth();
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [envError, setEnvError] = useState(false);
 
   useEffect(() => {
+    // Check if environment variables are set
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      setEnvError(true);
+      setCheckingSetup(false);
+      return;
+    }
+
     if (user && profile) {
       checkSetupStatus();
     } else if (!loading) {
@@ -67,6 +75,22 @@ function AppContent() {
     } finally {
       setCheckingSetup(false);
     }
+  }
+
+  if (envError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#111827]">
+        <div className="text-center max-w-lg p-8">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">Configuration Error</h1>
+          <p className="text-gray-300 mb-4">Missing Supabase environment variables.</p>
+          <div className="text-left bg-black/30 p-4 rounded-lg text-sm">
+            <p className="text-gray-400 mb-2">Add these to your Vercel Environment Variables:</p>
+            <code className="text-cyan-400 block">VITE_SUPABASE_URL</code>
+            <code className="text-cyan-400 block">VITE_SUPABASE_ANON_KEY</code>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading || checkingSetup) {
