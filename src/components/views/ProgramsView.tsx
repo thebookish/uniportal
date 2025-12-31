@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { usePrograms } from '@/hooks/usePrograms';
+import { useAuth } from '@/contexts/AuthContext';
 import { GraduationCap, Calendar, Users, CheckCircle2, Plus, Loader2, X, Edit, Trash2, LayoutList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,8 @@ import { IntakeCalendarView } from '@/components/programs/IntakeCalendarView';
 import { cn } from '@/lib/utils';
 
 export function ProgramsView() {
+  const { profile } = useAuth();
+  const universityId = (profile as any)?.university_id;
   const { programs, loading, refetch } = usePrograms();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProgram, setEditingProgram] = useState<any>(null);
@@ -47,7 +50,8 @@ export function ProgramsView() {
           intake_date: formData.intake_date || new Date().toISOString().split('T')[0],
           capacity: formData.capacity,
           enrolled: 0,
-          eligibility: eligibilityArray
+          eligibility: eligibilityArray,
+          university_id: universityId
         });
       }
       setShowAddModal(false);

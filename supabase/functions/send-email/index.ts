@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +14,8 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_ANON_KEY');
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    const emailUser = Deno.env.get('EMAIL_USER');
+    const emailPass = Deno.env.get('EMAIL_PASS');
 
     let body;
     try {
@@ -82,36 +84,39 @@ Deno.serve(async (req) => {
     let emailSent = false;
     let emailError = null;
 
-    // Try to send via Resend if API key is available
-    if (resendApiKey) {
+    // Send via SMTP (Gmail)
+    if (emailUser && emailPass) {
       try {
-        const resendResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
+        const client = new SMTPClient({
+          connection: {
+            hostname: 'smtp.gmail.com',
+            port: 465,
+            tls: true,
+            auth: {
+              username: emailUser,
+              password: emailPass,
+            },
           },
-          body: JSON.stringify({
-            from: 'WorldLynk <noreply@worldlynk.co.uk>',
-            to: [to],
-            subject: subject,
-            html: emailHtml,
-          }),
         });
 
-        if (resendResponse.ok) {
-          emailSent = true;
-          const resendData = await resendResponse.json();
-          console.log('Email sent via Resend:', resendData);
-        } else {
-          const errorData = await resendResponse.text();
-          console.error('Resend error:', errorData);
-          emailError = errorData;
-        }
+        await client.send({
+          from: `WorldLynk <${emailUser}>`,
+          to: to,
+          subject: subject,
+          content: message || 'Please view this email in an HTML-compatible email client.',
+          html: emailHtml,
+        });
+
+        await client.close();
+        emailSent = true;
+        console.log('Email sent via SMTP to:', to);
       } catch (err: any) {
-        console.error('Resend API error:', err);
+        console.error('SMTP error:', err);
         emailError = err.message;
       }
+    } else {
+      emailError = 'SMTP credentials not configured (EMAIL_USER, EMAIL_PASS)';
+      console.log('SMTP not configured, email queued');
     }
 
     // Record in database
@@ -125,7 +130,7 @@ Deno.serve(async (req) => {
         body_text: message || null,
         university_id: universityId || null,
         template_id: templateId || null,
-        status: emailSent ? 'sent' : (resendApiKey ? 'failed' : 'pending'),
+        status: emailSent ? 'sent' : (emailUser ? 'failed' : 'pending'),
         sent_at: emailSent ? new Date().toISOString() : null,
         error_message: emailError || null,
         metadata: { studentId }
@@ -156,7 +161,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         emailSent,
-        message: emailSent ? 'Email sent successfully' : 'Email queued (configure RESEND_API_KEY to send)',
+        message: emailSent ? 'Email sent successfully via SMTP' : 'Email queued (configure EMAIL_USER and EMAIL_PASS to send)',
         to,
         subject
       }),
