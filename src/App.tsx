@@ -29,6 +29,14 @@ function AppContent() {
 
   async function checkSetupStatus() {
     try {
+      // Only super_admin users should ever see setup wizard
+      // Invited team members should NEVER see setup
+      if (profile?.role !== 'super_admin') {
+        setNeedsSetup(false);
+        setCheckingSetup(false);
+        return;
+      }
+
       // Check if university has completed setup via the settings field
       const universityId = (profile as any)?.university_id;
       
@@ -43,7 +51,7 @@ function AppContent() {
       // Use university from context if available to avoid extra fetch
       if (university) {
         const setupCompleted = (university?.settings as any)?.setup_completed === true;
-        setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
+        setNeedsSetup(!setupCompleted);
         setCheckingSetup(false);
         return;
       }
@@ -64,7 +72,7 @@ function AppContent() {
         }
         
         const setupCompleted = (data?.settings as any)?.setup_completed === true;
-        setNeedsSetup(!setupCompleted && profile?.role === 'super_admin');
+        setNeedsSetup(!setupCompleted);
       } catch (fetchError) {
         console.warn('Network error fetching university, skipping setup check');
         setNeedsSetup(false);
