@@ -66,8 +66,10 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
       }
 
       refetch();
+      alert('Offer issued and email sent successfully!');
     } catch (error) {
       console.error('Error issuing offer:', error);
+      alert('Error issuing offer. Please try again.');
     } finally {
       setActionLoading(null);
     }
@@ -110,8 +112,10 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
       }
 
       refetch();
+      alert('Document request sent successfully!');
     } catch (error) {
       console.error('Error requesting documents:', error);
+      alert('Error requesting documents. Please try again.');
     } finally {
       setActionLoading(null);
     }

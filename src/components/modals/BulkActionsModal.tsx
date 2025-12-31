@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { X, Send, UserPlus, Workflow, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Send, UserPlus, Workflow, Download, Loader2, CheckCircle, AlertCircle, FileText, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePrograms } from '@/hooks/usePrograms';
 import { cn } from '@/lib/utils';
 
 interface BulkActionsModalProps {
@@ -17,6 +18,7 @@ interface BulkActionsModalProps {
 export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess }: BulkActionsModalProps) {
   const { profile } = useAuth();
   const universityId = (profile as any)?.university_id;
+  const { programs } = usePrograms();
   
   const [action, setAction] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -26,6 +28,7 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
   const [messageBody, setMessageBody] = useState('');
   const [selectedCounselor, setSelectedCounselor] = useState('');
   const [counselors, setCounselors] = useState<any[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState('');
 
   if (!isOpen) return null;
 
@@ -47,14 +50,31 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
         const student = selectedStudents[i];
         try {
           if (action === 'send_message') {
+            const personalizedMessage = messageBody.replace('{name}', student.name);
+            
+            // Record communication
             await supabase.from('communications').insert({
               student_id: student.id,
               type: 'email',
               subject: messageSubject,
-              message: messageBody.replace('{name}', student.name),
+              message: personalizedMessage,
               status: 'sent',
               university_id: universityId
             });
+            
+            // Send actual email
+            if (student.email) {
+              await supabase.functions.invoke('supabase-functions-send-email', {
+                body: {
+                  to: student.email,
+                  toName: student.name,
+                  subject: messageSubject,
+                  message: personalizedMessage,
+                  studentId: student.id,
+                  universityId
+                }
+              });
+            }
           } else if (action === 'assign_counselor') {
             await supabase.from('students').update({ counselor_id: selectedCounselor }).eq('id', student.id).eq('university_id', universityId);
           } else if (action === 'trigger_workflow') {
@@ -67,6 +87,39 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
               read: false,
               university_id: universityId
             });
+          } else if (action === 'request_documents') {
+            const subject = 'Documents Required - Action Needed';
+            const message = `Dear ${student.name},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`;
+
+            await supabase.from('documents').insert([
+              { student_id: student.id, name: 'Transcript', status: 'pending', university_id: universityId },
+              { student_id: student.id, name: 'ID Document', status: 'pending', university_id: universityId },
+              { student_id: student.id, name: 'English Proficiency', status: 'pending', university_id: universityId }
+            ]);
+            
+            await supabase.from('communications').insert({
+              student_id: student.id,
+              type: 'email',
+              subject,
+              message,
+              status: 'sent',
+              university_id: universityId
+            });
+
+            if (student.email) {
+              await supabase.functions.invoke('supabase-functions-send-email', {
+                body: {
+                  to: student.email,
+                  toName: student.name,
+                  subject,
+                  message,
+                  studentId: student.id,
+                  universityId
+                }
+              });
+            }
+          } else if (action === 'assign_program') {
+            await supabase.from('students').update({ program_id: selectedProgramId }).eq('id', student.id).eq('university_id', universityId);
           }
           success++;
         } catch {
@@ -183,6 +236,30 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
                 </div>
               </button>
               <button
+                onClick={() => setAction('request_documents')}
+                className="w-full flex items-center gap-3 p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-left"
+              >
+                <div className="p-2 rounded-lg bg-cyan-500/10">
+                  <FileText className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-white">Request Documents</p>
+                  <p className="text-sm text-gray-400">Send document request to students</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setAction('assign_program')}
+                className="w-full flex items-center gap-3 p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-left"
+              >
+                <div className="p-2 rounded-lg bg-emerald-500/10">
+                  <GraduationCap className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-white">Assign Program</p>
+                  <p className="text-sm text-gray-400">Assign a program to selected students</p>
+                </div>
+              </button>
+              <button
                 onClick={exportData}
                 className="w-full flex items-center gap-3 p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-left"
               >
@@ -276,6 +353,65 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                 >
                   Trigger for {selectedStudents.length} Students
+                </Button>
+              </div>
+            </div>
+          ) : action === 'request_documents' ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                <p className="text-sm text-cyan-400">
+                  This will send document request emails to all selected students, asking them to submit:
+                </p>
+                <ul className="text-sm text-cyan-400 mt-2 list-disc list-inside">
+                  <li>Academic Transcript</li>
+                  <li>ID Document</li>
+                  <li>English Proficiency Certificate</li>
+                </ul>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => setAction('')} className="flex-1 border-white/10">
+                  Back
+                </Button>
+                <Button 
+                  onClick={executeBulkAction}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Request from {selectedStudents.length} Students
+                </Button>
+              </div>
+            </div>
+          ) : action === 'assign_program' ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <p className="text-sm text-emerald-400">
+                  Assign a program to {selectedStudents.length} selected student{selectedStudents.length > 1 ? 's' : ''}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Select Program</label>
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="">Choose a program...</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name} - {program.department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => setAction('')} className="flex-1 border-white/10">
+                  Back
+                </Button>
+                <Button 
+                  onClick={executeBulkAction}
+                  disabled={!selectedProgramId}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+                >
+                  Assign to {selectedStudents.length} Students
                 </Button>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Mail, Phone, MapPin, Calendar, FileText, Sparkles, AlertTriangle, TrendingDown, Loader2, Send, UserPlus, Check, Upload, Clock, Shield, Target, CalendarPlus } from 'lucide-react';
+import { X, Mail, Phone, MapPin, Calendar, FileText, Sparkles, AlertTriangle, TrendingDown, Loader2, Send, UserPlus, Check, Upload, Clock, Shield, Target, CalendarPlus, Video, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { ObligationsPanel } from './ObligationsPanel';
 
 interface StudentDetailPanelProps {
@@ -21,6 +22,18 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [recommendations, setRecommendations] = useState<string[]>([]);
+  
+  // Action loading states
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [schedulingMeeting, setSchedulingMeeting] = useState(false);
+  const [initiatingIntervention, setInitiatingIntervention] = useState(false);
+  const [requestingDocs, setRequestingDocs] = useState(false);
+  
+  // Meeting modal state
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('10:00');
+  const [meetingLink, setMeetingLink] = useState('');
 
   useEffect(() => {
     fetchStudent();
@@ -74,6 +87,7 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
       alert('Student email not available');
       return;
     }
+    setSendingMessage(true);
     try {
       const subject = 'Check-in from WorldLynk';
       const message = `Hi ${student.name}, we wanted to check in and see how you're doing. If you have any questions or need support, please don't hesitate to reach out.`;
@@ -104,24 +118,51 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Message recorded but email delivery may have failed');
+    } finally {
+      setSendingMessage(false);
     }
   }
 
+  function openMeetingModal() {
+    // Set default date to 3 days from now
+    const defaultDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    setMeetingDate(defaultDate.toISOString().split('T')[0]);
+    setMeetingTime('10:00');
+    setMeetingLink('');
+    setShowMeetingModal(true);
+  }
+
   async function scheduleMeeting() {
-    if (!universityId) return;
+    if (!universityId || !meetingDate) {
+      alert('Please select a date for the meeting');
+      return;
+    }
+    setSchedulingMeeting(true);
     try {
-      const meetingDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-      const meetingDateStr = meetingDate.toISOString().split('T')[0];
+      const scheduledDate = new Date(`${meetingDate}T${meetingTime}`);
+      const formattedDate = format(scheduledDate, 'MMMM d, yyyy');
+      const formattedTime = format(scheduledDate, 'h:mm a');
+      
       const subject = 'Meeting Scheduled - WorldLynk';
-      const message = `Hi ${student?.name}, a counseling meeting has been scheduled for you on ${meetingDate.toLocaleDateString()}. Please check your portal for details and be prepared to discuss your progress and any support you may need.`;
+      let message = `Hi ${student?.name},\n\nA counseling meeting has been scheduled for you.\n\nDate: ${formattedDate}\nTime: ${formattedTime}`;
+      
+      if (meetingLink) {
+        message += `\nMeeting Link: ${meetingLink}`;
+      }
+      
+      message += `\n\nPlease be prepared to discuss your progress and any support you may need.\n\nBest regards,\nStudent Success Team`;
 
       // Create an onboarding task for the meeting
+      const taskDescription = meetingLink 
+        ? `Scheduled intervention meeting to discuss progress and support options.\n\nMeeting Link: ${meetingLink}`
+        : 'Scheduled intervention meeting to discuss progress and support options.';
+        
       await supabase.from('onboarding_tasks').insert({
         student_id: studentId,
         title: `Counseling Meeting with ${student?.name}`,
-        description: 'Scheduled intervention meeting to discuss progress and support options.',
+        description: taskDescription,
         status: 'pending',
-        due_date: meetingDateStr,
+        due_date: meetingDate,
         university_id: universityId
       });
 
@@ -153,22 +194,73 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
       await supabase.from('ai_alerts').insert({
         severity: 'info',
         title: 'Meeting Scheduled',
-        description: `Counseling meeting scheduled with ${student?.name}`,
+        description: `Counseling meeting scheduled with ${student?.name} for ${formattedDate} at ${formattedTime}`,
         student_id: studentId,
         recommendations: ['Prepare intervention discussion points', 'Review student history before meeting'],
         read: false,
         university_id: universityId
       });
 
+      setShowMeetingModal(false);
       alert('Meeting scheduled successfully!');
     } catch (error) {
       console.error('Error scheduling meeting:', error);
       alert('Error scheduling meeting');
+    } finally {
+      setSchedulingMeeting(false);
+    }
+  }
+
+  async function requestDocuments() {
+    if (!universityId || !student?.email) {
+      alert('Student email not available');
+      return;
+    }
+    setRequestingDocs(true);
+    try {
+      const subject = 'Documents Required - Action Needed';
+      const message = `Dear ${student?.name},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`;
+
+      await supabase.from('documents').insert([
+        { student_id: studentId, name: 'Transcript', status: 'pending', university_id: universityId },
+        { student_id: studentId, name: 'ID Document', status: 'pending', university_id: universityId },
+        { student_id: studentId, name: 'English Proficiency', status: 'pending', university_id: universityId }
+      ]);
+      
+      await supabase.from('communications').insert({
+        student_id: studentId,
+        type: 'email',
+        subject,
+        message,
+        status: 'sent',
+        university_id: universityId
+      });
+
+      // Send actual email
+      await supabase.functions.invoke('supabase-functions-send-email', {
+        body: {
+          to: student.email,
+          toName: student.name,
+          subject,
+          message,
+          studentId,
+          universityId
+        }
+      });
+
+      fetchStudent();
+      alert('Document request sent successfully!');
+    } catch (error) {
+      console.error('Error requesting documents:', error);
+      alert('Error requesting documents');
+    } finally {
+      setRequestingDocs(false);
     }
   }
 
   async function initiateIntervention() {
     if (!universityId) return;
+    setInitiatingIntervention(true);
     try {
       const subject = 'Important: Support Available - WorldLynk';
       const message = `Dear ${student?.name},\n\nWe've noticed you may be facing some challenges, and we want you to know that we're here to support you.\n\nOur team has initiated a support intervention to help you get back on track. Here's what you can expect:\n\n• A member of our team will reach out to you within 24 hours\n• We'll review your current progress and identify areas where you need support\n• We'll prepare personalized resources to help you succeed\n\nPlease don't hesitate to reach out if you need anything before then.\n\nBest regards,\nStudent Success Team`;
@@ -220,6 +312,8 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
       fetchStudent();
     } catch (error) {
       console.error('Error initiating intervention:', error);
+    } finally {
+      setInitiatingIntervention(false);
     }
   }
 
@@ -526,8 +620,18 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
           <div className="glass-card p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-white">Documents</h3>
-              <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5">
-                <Upload className="w-4 h-4 mr-2" />Request
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={requestDocuments}
+                disabled={requestingDocs}
+                className="border-white/10 hover:bg-white/5"
+              >
+                {requestingDocs ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Requesting...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" />Request</>
+                )}
               </Button>
             </div>
             <div className="space-y-3">
@@ -560,20 +664,120 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <Button onClick={sendMessage} className="w-full sm:flex-1 bg-orange-500 hover:bg-orange-600 text-white">
-              <Send className="w-4 h-4 mr-2" />Send Message
+            <Button 
+              onClick={sendMessage} 
+              disabled={sendingMessage}
+              className="w-full sm:flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {sendingMessage ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+              ) : (
+                <><Send className="w-4 h-4 mr-2" />Send Message</>
+              )}
             </Button>
-            <Button onClick={scheduleMeeting} variant="outline" className="w-full sm:flex-1 border-white/10 hover:bg-white/5">
+            <Button 
+              onClick={openMeetingModal} 
+              variant="outline" 
+              className="w-full sm:flex-1 border-white/10 hover:bg-white/5"
+            >
               <Calendar className="w-4 h-4 mr-2" />Schedule Meeting
             </Button>
             {student?.risk_score >= 50 && (
-              <Button onClick={initiateIntervention} className="w-full sm:flex-1 bg-red-500 hover:bg-red-600 text-white">
-                <AlertTriangle className="w-4 h-4 mr-2" />Initiate Intervention
+              <Button 
+                onClick={initiateIntervention} 
+                disabled={initiatingIntervention}
+                className="w-full sm:flex-1 bg-red-500 hover:bg-red-600 text-white"
+              >
+                {initiatingIntervention ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Initiating...</>
+                ) : (
+                  <><AlertTriangle className="w-4 h-4 mr-2" />Initiate Intervention</>
+                )}
               </Button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Meeting Schedule Modal */}
+      {showMeetingModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-white">Schedule Meeting</h3>
+              <button 
+                onClick={() => setShowMeetingModal(false)}
+                className="p-1 hover:bg-white/10 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Meeting Date *</label>
+                <Input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => setMeetingDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Meeting Time *</label>
+                <Input
+                  type="time"
+                  value={meetingTime}
+                  onChange={(e) => setMeetingTime(e.target.value)}
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4" />
+                    Meeting Link (Optional)
+                  </div>
+                </label>
+                <Input
+                  type="url"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  placeholder="https://zoom.us/j/... or https://meet.google.com/..."
+                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Paste your Zoom or Google Meet link
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMeetingModal(false)}
+                  className="flex-1 border-white/10 hover:bg-white/5"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={scheduleMeeting}
+                  disabled={schedulingMeeting || !meetingDate}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {schedulingMeeting ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scheduling...</>
+                  ) : (
+                    <><CalendarPlus className="w-4 h-4 mr-2" />Schedule</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

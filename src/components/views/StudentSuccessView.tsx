@@ -177,8 +177,10 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
 
       refetch();
       setSelectedIntervention(null);
+      alert('Intervention triggered and email sent successfully!');
     } catch (error) {
       console.error('Error:', error);
+      alert('Error triggering intervention. Please try again.');
     } finally {
       setActionLoading(null);
     }

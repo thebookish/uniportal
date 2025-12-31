@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useStudents } from '@/hooks/useStudents';
+import { usePrograms } from '@/hooks/usePrograms';
 import { useLifecycleStats } from '@/hooks/useLifecycleStats';
-import { Search, Filter, Download, Mail, UserPlus, Sparkles, Loader2, CheckSquare, Square } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Search, Filter, Download, Mail, UserPlus, Sparkles, Loader2, CheckSquare, Square, GraduationCap, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AddStudentModal } from '@/components/modals/AddStudentModal';
 import { BulkActionsModal } from '@/components/modals/BulkActionsModal';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -15,13 +18,46 @@ interface StudentsViewProps {
 }
 
 export function StudentsView({ onStudentClick }: StudentsViewProps) {
+  const { profile } = useAuth();
+  const universityId = profile?.university_id;
+  
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [showAssignProgram, setShowAssignProgram] = useState(false);
+  const [selectedProgramId, setSelectedProgramId] = useState('');
+  const [assigningProgram, setAssigningProgram] = useState(false);
+  
   const { students, loading, refetch } = useStudents(selectedStage);
+  const { programs } = usePrograms();
   const { stages } = useLifecycleStats();
+  
+  async function assignProgramToStudents() {
+    if (!universityId || !selectedProgramId || selectedStudents.length === 0) return;
+    setAssigningProgram(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ program_id: selectedProgramId })
+        .in('id', selectedStudents)
+        .eq('university_id', universityId);
+      
+      if (error) throw error;
+      
+      refetch();
+      setShowAssignProgram(false);
+      setSelectedStudents([]);
+      setSelectedProgramId('');
+      alert(`Program assigned to ${selectedStudents.length} student(s) successfully!`);
+    } catch (error) {
+      console.error('Error assigning program:', error);
+      alert('Error assigning program. Please try again.');
+    } finally {
+      setAssigningProgram(false);
+    }
+  }
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -108,14 +144,24 @@ export function StudentsView({ onStudentClick }: StudentsViewProps) {
           Filters
         </Button>
         {selectedStudents.length > 0 && (
-          <Button 
-            size="sm" 
-            onClick={() => setBulkActionsOpen(true)}
-            className="bg-purple-500 hover:bg-purple-600 text-white text-xs md:text-sm"
-          >
-            <CheckSquare className="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
-            Bulk Actions ({selectedStudents.length})
-          </Button>
+          <>
+            <Button 
+              size="sm" 
+              onClick={() => setShowAssignProgram(true)}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white text-xs md:text-sm"
+            >
+              <GraduationCap className="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
+              Assign Program
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => setBulkActionsOpen(true)}
+              className="bg-purple-500 hover:bg-purple-600 text-white text-xs md:text-sm"
+            >
+              <CheckSquare className="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
+              Bulk Actions ({selectedStudents.length})
+            </Button>
+          </>
         )}
       </div>
 
@@ -258,6 +304,68 @@ export function StudentsView({ onStudentClick }: StudentsViewProps) {
         selectedStudents={selectedStudentData}
         onSuccess={() => { refetch(); setSelectedStudents([]); }}
       />
+
+      {/* Assign Program Modal */}
+      {showAssignProgram && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-white">Assign Program</h3>
+              <button 
+                onClick={() => setShowAssignProgram(false)}
+                className="p-1 hover:bg-white/10 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                <p className="text-sm text-cyan-400">
+                  Assign a program to {selectedStudents.length} selected student{selectedStudents.length > 1 ? 's' : ''}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Select Program *</label>
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="">Choose a program...</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name} - {program.department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAssignProgram(false)}
+                  className="flex-1 border-white/10 hover:bg-white/5"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={assignProgramToStudents}
+                  disabled={assigningProgram || !selectedProgramId}
+                  className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white"
+                >
+                  {assigningProgram ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Assigning...</>
+                  ) : (
+                    <><GraduationCap className="w-4 h-4 mr-2" />Assign Program</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

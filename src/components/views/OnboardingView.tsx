@@ -108,20 +108,45 @@ export function OnboardingView() {
     }
   }
 
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
   async function sendReminder(task: any) {
     if (!universityId) return;
+    setSendingReminder(task.id);
     try {
+      const subject = `Reminder: ${task.title}`;
+      const message = `Hi ${task.students?.name},\n\nThis is a friendly reminder about your pending task:\n\n📋 Task: ${task.title}\n${task.description ? `📝 Details: ${task.description}` : ''}\n${task.due_date ? `📅 Due Date: ${new Date(task.due_date).toLocaleDateString()}` : ''}\n\nPlease complete this task at your earliest convenience.\n\nBest regards,\nStudent Success Team`;
+
+      // Record communication
       await supabase.from('communications').insert({
         student_id: task.student_id,
         type: 'email',
-        subject: `Reminder: ${task.title}`,
-        message: `Hi ${task.students?.name}, this is a reminder about your pending task: ${task.title}. ${task.description || ''}`,
+        subject,
+        message,
         status: 'sent',
         university_id: universityId
       });
-      alert('Reminder sent!');
+
+      // Send actual email
+      if (task.students?.email) {
+        await supabase.functions.invoke('supabase-functions-send-email', {
+          body: {
+            to: task.students.email,
+            toName: task.students.name,
+            subject,
+            message,
+            studentId: task.student_id,
+            universityId
+          }
+        });
+      }
+
+      alert('Reminder sent successfully!');
     } catch (error) {
       console.error('Error:', error);
+      alert('Error sending reminder');
+    } finally {
+      setSendingReminder(null);
     }
   }
 
@@ -346,9 +371,14 @@ export function OnboardingView() {
                             variant="ghost"
                             size="icon"
                             onClick={() => sendReminder(task)}
+                            disabled={sendingReminder === task.id}
                             className="hover:bg-blue-500/10"
                           >
-                            <Send className="w-4 h-4 text-blue-400" />
+                            {sendingReminder === task.id ? (
+                              <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4 text-blue-400" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
