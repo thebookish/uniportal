@@ -13,8 +13,11 @@ import { cn } from '@/lib/utils';
 
 export function ProgramsView() {
   const { profile } = useAuth();
-  const universityId = (profile as any)?.university_id;
+  const universityId = profile?.university_id;
   const { programs, loading, refetch } = usePrograms();
+  
+  // Debug: Log universityId to check if it's being set correctly
+  console.log('ProgramsView - universityId:', universityId, 'profile:', profile);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProgram, setEditingProgram] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -28,7 +31,14 @@ export function ProgramsView() {
   });
 
   async function handleSaveProgram() {
-    if (!formData.name || !formData.department) return;
+    if (!formData.name || !formData.department) {
+      alert('Please fill in program name and department');
+      return;
+    }
+    if (!universityId) {
+      alert('University not found. Please refresh and try again.');
+      return;
+    }
     setSaving(true);
     try {
       const eligibilityArray = formData.eligibility
@@ -36,15 +46,21 @@ export function ProgramsView() {
         : [];
 
       if (editingProgram) {
-        await supabase.from('programs').update({
+        const { error } = await supabase.from('programs').update({
           name: formData.name,
           department: formData.department,
           intake_date: formData.intake_date || new Date().toISOString().split('T')[0],
           capacity: formData.capacity,
           eligibility: eligibilityArray
         }).eq('id', editingProgram.id);
+        
+        if (error) {
+          console.error('Update error:', error);
+          alert('Error updating program: ' + error.message);
+          return;
+        }
       } else {
-        await supabase.from('programs').insert({
+        const { error } = await supabase.from('programs').insert({
           name: formData.name,
           department: formData.department,
           intake_date: formData.intake_date || new Date().toISOString().split('T')[0],
@@ -53,13 +69,20 @@ export function ProgramsView() {
           eligibility: eligibilityArray,
           university_id: universityId
         });
+        
+        if (error) {
+          console.error('Insert error:', error);
+          alert('Error adding program: ' + error.message);
+          return;
+        }
       }
       setShowAddModal(false);
       setEditingProgram(null);
       setFormData({ name: '', department: '', intake_date: '', capacity: 100, eligibility: '' });
       refetch();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving program:', error);
+      alert('Error saving program: ' + (error?.message || 'Unknown error'));
     } finally {
       setSaving(false);
     }

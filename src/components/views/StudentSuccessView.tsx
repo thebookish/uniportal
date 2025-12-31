@@ -68,24 +68,71 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
       if (!student) return;
 
       if (type === 'message') {
+        const subject = 'We\'re Here to Help - Student Support';
+        const message = `Hi ${student.name},\n\nWe noticed you might need some support. Our team is here to help you succeed.\n\nPlease don't hesitate to reach out if you need anything - whether it's academic assistance, advice, or just someone to talk to.\n\nWe're committed to your success!\n\nBest regards,\nStudent Success Team`;
+
         await supabase.from('communications').insert({
           student_id: studentId,
           type: 'email',
-          subject: 'We\'re Here to Help',
-          message: `Hi ${student.name}, we noticed you might need some support. Our team is here to help you succeed. Please reach out if you need anything.`,
+          subject,
+          message,
           status: 'sent',
           university_id: universityId
         });
+
+        // Send actual email
+        if (student.email) {
+          await supabase.functions.invoke('supabase-functions-send-email', {
+            body: {
+              to: student.email,
+              toName: student.name,
+              subject,
+              message,
+              studentId,
+              universityId
+            }
+          });
+        }
       } else if (type === 'meeting') {
+        const meetingDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+        const subject = 'Support Meeting Scheduled - Student Success Team';
+        const message = `Hi ${student.name},\n\nWe have scheduled a one-on-one support meeting with you on ${meetingDate.toLocaleDateString()}.\n\nThis meeting is to help discuss your progress and identify ways we can support your academic journey.\n\nPlease check your portal for details.\n\nBest regards,\nStudent Success Team`;
+
         await supabase.from('onboarding_tasks').insert({
           student_id: studentId,
           title: 'Support Meeting Scheduled',
           description: 'One-on-one meeting with student success team',
           status: 'pending',
-          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          due_date: meetingDate.toISOString().split('T')[0],
           university_id: universityId
         });
+
+        await supabase.from('communications').insert({
+          student_id: studentId,
+          type: 'email',
+          subject,
+          message,
+          status: 'sent',
+          university_id: universityId
+        });
+
+        // Send actual email
+        if (student.email) {
+          await supabase.functions.invoke('supabase-functions-send-email', {
+            body: {
+              to: student.email,
+              toName: student.name,
+              subject,
+              message,
+              studentId,
+              universityId
+            }
+          });
+        }
       } else if (type === 'mentorship') {
+        const subject = 'Peer Mentorship Program - You\'ve Been Enrolled';
+        const message = `Hi ${student.name},\n\nGreat news! You have been enrolled in our Peer Mentorship Program.\n\nYou will be connected with a peer mentor who will provide academic support and guidance throughout your journey.\n\nMore details will be shared with you soon.\n\nBest regards,\nStudent Success Team`;
+
         await supabase.from('onboarding_tasks').insert({
           student_id: studentId,
           title: 'Peer Mentorship Program',
@@ -93,6 +140,29 @@ export function StudentSuccessView({ onStudentClick }: StudentSuccessViewProps) 
           status: 'pending',
           university_id: universityId
         });
+
+        await supabase.from('communications').insert({
+          student_id: studentId,
+          type: 'email',
+          subject,
+          message,
+          status: 'sent',
+          university_id: universityId
+        });
+
+        // Send actual email
+        if (student.email) {
+          await supabase.functions.invoke('supabase-functions-send-email', {
+            body: {
+              to: student.email,
+              toName: student.name,
+              subject,
+              message,
+              studentId,
+              universityId
+            }
+          });
+        }
       }
 
       await supabase.from('ai_alerts').insert({

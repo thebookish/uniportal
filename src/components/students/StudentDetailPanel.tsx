@@ -70,40 +70,84 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   }
 
   async function sendMessage() {
-    if (!universityId) return;
-    await supabase.from('communications').insert({
-      student_id: studentId,
-      type: 'email',
-      subject: 'Check-in from WorldLynk',
-      message: `Hi ${student.name}, we wanted to check in and see how you're doing.`,
-      status: 'sent',
-      university_id: universityId
-    });
-    alert('Message sent!');
+    if (!universityId || !student?.email) {
+      alert('Student email not available');
+      return;
+    }
+    try {
+      const subject = 'Check-in from WorldLynk';
+      const message = `Hi ${student.name}, we wanted to check in and see how you're doing. If you have any questions or need support, please don't hesitate to reach out.`;
+      
+      // Insert communication record
+      await supabase.from('communications').insert({
+        student_id: studentId,
+        type: 'email',
+        subject,
+        message,
+        status: 'sent',
+        university_id: universityId
+      });
+
+      // Send actual email via edge function
+      await supabase.functions.invoke('supabase-functions-send-email', {
+        body: {
+          to: student.email,
+          toName: student.name,
+          subject,
+          message,
+          studentId,
+          universityId
+        }
+      });
+
+      alert('Message sent successfully!');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Message recorded but email delivery may have failed');
+    }
   }
 
   async function scheduleMeeting() {
     if (!universityId) return;
     try {
+      const meetingDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      const meetingDateStr = meetingDate.toISOString().split('T')[0];
+      const subject = 'Meeting Scheduled - WorldLynk';
+      const message = `Hi ${student?.name}, a counseling meeting has been scheduled for you on ${meetingDate.toLocaleDateString()}. Please check your portal for details and be prepared to discuss your progress and any support you may need.`;
+
       // Create an onboarding task for the meeting
       await supabase.from('onboarding_tasks').insert({
         student_id: studentId,
         title: `Counseling Meeting with ${student?.name}`,
         description: 'Scheduled intervention meeting to discuss progress and support options.',
         status: 'pending',
-        due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        due_date: meetingDateStr,
         university_id: universityId
       });
 
-      // Send notification to student
+      // Send notification to student (record)
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
-        subject: 'Meeting Scheduled - WorldLynk',
-        message: `Hi ${student?.name}, a counseling meeting has been scheduled for you. Please check your portal for details.`,
+        subject,
+        message,
         status: 'sent',
         university_id: universityId
       });
+
+      // Send actual email via edge function
+      if (student?.email) {
+        await supabase.functions.invoke('supabase-functions-send-email', {
+          body: {
+            to: student.email,
+            toName: student.name,
+            subject,
+            message,
+            studentId,
+            universityId
+          }
+        });
+      }
 
       // Create AI alert for tracking
       await supabase.from('ai_alerts').insert({
@@ -126,6 +170,9 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   async function initiateIntervention() {
     if (!universityId) return;
     try {
+      const subject = 'Important: Support Available - WorldLynk';
+      const message = `Dear ${student?.name},\n\nWe've noticed you may be facing some challenges, and we want you to know that we're here to support you.\n\nOur team has initiated a support intervention to help you get back on track. Here's what you can expect:\n\n• A member of our team will reach out to you within 24 hours\n• We'll review your current progress and identify areas where you need support\n• We'll prepare personalized resources to help you succeed\n\nPlease don't hesitate to reach out if you need anything before then.\n\nBest regards,\nStudent Success Team`;
+
       await supabase.from('ai_alerts').insert({
         severity: 'warning',
         title: 'Intervention Initiated',
@@ -140,12 +187,36 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
         read: false
       });
 
+      // Record communication
+      await supabase.from('communications').insert({
+        student_id: studentId,
+        type: 'email',
+        subject,
+        message,
+        status: 'sent',
+        university_id: universityId
+      });
+
+      // Send actual email
+      if (student?.email) {
+        await supabase.functions.invoke('supabase-functions-send-email', {
+          body: {
+            to: student.email,
+            toName: student.name,
+            subject,
+            message,
+            studentId,
+            universityId
+          }
+        });
+      }
+
       // Update student engagement to reflect intervention
       await supabase.from('students').update({
         last_activity: new Date().toISOString()
       }).eq('id', studentId);
 
-      alert('Intervention initiated! Alert created for follow-up.');
+      alert('Intervention initiated! Alert created and email sent to student.');
       fetchStudent();
     } catch (error) {
       console.error('Error initiating intervention:', error);

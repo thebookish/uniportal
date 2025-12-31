@@ -37,15 +37,34 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
     if (!universityId) return;
     setActionLoading(studentId);
     try {
+      const student = students.find(s => s.id === studentId);
+      const subject = 'Congratulations! Your Offer Letter';
+      const message = `Dear ${student?.name || 'Student'},\n\nWe are pleased to inform you that you have been accepted to our institution!\n\nPlease log in to your portal to view your offer details and next steps.\n\nBest regards,\nAdmissions Team`;
+
       await supabase.from('students').update({ stage: 'offer' }).eq('id', studentId).eq('university_id', universityId);
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
-        subject: 'Congratulations! Your Offer Letter',
-        message: 'We are pleased to inform you that you have been accepted...',
+        subject,
+        message,
         status: 'sent',
         university_id: universityId
       });
+
+      // Send actual email
+      if (student?.email) {
+        await supabase.functions.invoke('supabase-functions-send-email', {
+          body: {
+            to: student.email,
+            toName: student.name,
+            subject,
+            message,
+            studentId,
+            universityId
+          }
+        });
+      }
+
       refetch();
     } catch (error) {
       console.error('Error issuing offer:', error);
@@ -58,6 +77,10 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
     if (!universityId) return;
     setActionLoading(studentId);
     try {
+      const student = students.find(s => s.id === studentId);
+      const subject = 'Documents Required - Action Needed';
+      const message = `Dear ${student?.name || 'Student'},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`;
+
       await supabase.from('documents').insert([
         { student_id: studentId, name: 'Transcript', status: 'pending', university_id: universityId },
         { student_id: studentId, name: 'ID Document', status: 'pending', university_id: universityId },
@@ -66,11 +89,26 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
-        subject: 'Documents Required',
-        message: 'Please submit the required documents to complete your application.',
+        subject,
+        message,
         status: 'sent',
         university_id: universityId
       });
+
+      // Send actual email
+      if (student?.email) {
+        await supabase.functions.invoke('supabase-functions-send-email', {
+          body: {
+            to: student.email,
+            toName: student.name,
+            subject,
+            message,
+            studentId,
+            universityId
+          }
+        });
+      }
+
       refetch();
     } catch (error) {
       console.error('Error requesting documents:', error);
