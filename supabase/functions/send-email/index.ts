@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
       communicationId,
       universityId,
       templateId,
-      variables 
+      variables,
+      senderName
     } = body;
 
     if (!to || !subject) {
@@ -48,6 +49,20 @@ Deno.serve(async (req) => {
       ? createClient(supabaseUrl, supabaseKey)
       : null;
 
+    // Fetch university name if universityId provided
+    let universityName = senderName || 'WorldLynk';
+    if (universityId && supabaseClient && !senderName) {
+      const { data: universityData } = await supabaseClient
+        .from('universities')
+        .select('name')
+        .eq('id', universityId)
+        .single();
+      
+      if (universityData?.name) {
+        universityName = universityData.name;
+      }
+    }
+
     // Build email content
     let emailHtml = htmlContent || `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -57,7 +72,7 @@ Deno.serve(async (req) => {
         </div>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
         <p style="color: #666; font-size: 12px;">
-          Sent via WorldLynk University Portal
+          Sent via ${universityName}
         </p>
       </div>
     `;
@@ -100,7 +115,7 @@ Deno.serve(async (req) => {
         });
 
         await client.send({
-          from: `WorldLynk <${emailUser}>`,
+          from: `${universityName} <${emailUser}>`,
           to: to,
           subject: subject,
           content: message || 'Please view this email in an HTML-compatible email client.',

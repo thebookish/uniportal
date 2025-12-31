@@ -85,12 +85,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (!data) {
-        // Profile doesn't exist yet, create a default one with new university
+        // Profile doesn't exist yet, check for pending invitation
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         const userEmail = currentUser?.email;
+        
         if (userEmail) {
+          // Check for pending invitation
+          const { data: invitation } = await supabase
+            .from('team_invitations')
+            .select('*')
+            .eq('email', userEmail)
+            .eq('status', 'pending')
+            .maybeSingle();
+          
+          if (invitation) {
+            // Accept invitation and create user
+            const { data: result } = await supabase.rpc('accept_invitation', {
+              p_invitation_id: invitation.id,
+              p_auth_id: userId
+            });
+            
+            if (result?.success) {
+              // Fetch the newly created profile
+              const { data: newProfile } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', result.user_id)
+                .single();
+              
+              if (newProfile) {
+                setProfile(newProfile);
+                if (newProfile.university_id) {
+                  const { data: uniData } = await supabase
+                    .from('universities')
+                    .select('*')
+                    .eq('id', newProfile.university_id)
+                    .single();
+                  if (uniData) {
+                    setUniversity(uniData);
+                  }
+                }
+              }
+              setLoading(false);
+              return;
+            }
+          }
+          
+          // No invitation found, create a new university for this user
           try {
-            // Create a new university for this user
             const { data: newUniversity, error: uniError } = await supabase
               .from('universities')
               .insert({

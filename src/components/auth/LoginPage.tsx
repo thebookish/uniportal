@@ -1,8 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2, UserPlus, Mail, CheckCircle } from 'lucide-react';
+import { Sparkles, Loader2, UserPlus, Mail, CheckCircle, Users } from 'lucide-react';
+
+interface InvitationData {
+  id: string;
+  email: string;
+  role: string;
+  metadata?: {
+    name?: string;
+    permissions?: any;
+  };
+}
 
 export function LoginPage() {
   const { signIn, signUp } = useAuth();
@@ -13,6 +24,42 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [invitation, setInvitation] = useState<InvitationData | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(true);
+
+  useEffect(() => {
+    // Check for invitation in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteId = urlParams.get('invite');
+    
+    if (inviteId) {
+      fetchInvitation(inviteId);
+    } else {
+      setLoadingInvite(false);
+    }
+  }, []);
+
+  async function fetchInvitation(inviteId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('team_invitations')
+        .select('*')
+        .eq('id', inviteId)
+        .eq('status', 'pending')
+        .single();
+      
+      if (data && !error) {
+        setInvitation(data);
+        setEmail(data.email);
+        setName(data.metadata?.name || '');
+        setIsSignUp(true);
+      }
+    } catch (err) {
+      console.error('Error fetching invitation:', err);
+    } finally {
+      setLoadingInvite(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,6 +79,18 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Loading invitation
+  if (loadingInvite) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#111827] p-4">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   // Email confirmation sent screen
@@ -114,6 +173,21 @@ export function LoginPage() {
             University Admin Portal
           </p>
 
+          {invitation && (
+            <div className="mb-6 p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+              <div className="flex items-center gap-3 mb-2">
+                <Users className="w-5 h-5 text-cyan-400" />
+                <p className="text-cyan-400 font-medium">Team Invitation</p>
+              </div>
+              <p className="text-sm text-gray-300">
+                You've been invited to join as <span className="text-white font-medium">{invitation.role.replace('_', ' ')}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Create your password below to complete setup
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -133,6 +207,7 @@ export function LoginPage() {
                   placeholder="John Doe"
                   className="bg-white/5 border-white/10 text-white"
                   required={isSignUp}
+                  disabled={!!invitation}
                 />
               </div>
             )}
@@ -148,6 +223,7 @@ export function LoginPage() {
                 placeholder="admin@university.edu"
                 className="bg-white/5 border-white/10 text-white"
                 required
+                disabled={!!invitation}
               />
             </div>
 
@@ -186,17 +262,19 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-              }}
-              className="text-sm text-orange-400 hover:text-orange-300"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
-            </button>
-          </div>
+          {!invitation && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError('');
+                }}
+                className="text-sm text-orange-400 hover:text-orange-300"
+              >
+                {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -989,6 +989,7 @@ export type Database = {
           expires_at: string | null
           id: string
           invited_by: string | null
+          metadata: Json | null
           role: string
           status: string
           university_id: string | null
@@ -999,6 +1000,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           invited_by?: string | null
+          metadata?: Json | null
           role: string
           status?: string
           university_id?: string | null
@@ -1009,6 +1011,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           invited_by?: string | null
+          metadata?: Json | null
           role?: string
           status?: string
           university_id?: string | null
@@ -1160,7 +1163,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      accept_invitation: {
+        Args: { p_auth_id: string; p_invitation_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

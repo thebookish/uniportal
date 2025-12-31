@@ -16,6 +16,7 @@ import {
   Mail,
   UserX,
   Shield,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,7 @@ export function SettingsView() {
 
   // Team members
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [newInvite, setNewInvite] = useState({ 
     email: "", 
     name: "", 
@@ -173,6 +175,15 @@ export function SettingsView() {
         .select("*")
         .eq("university_id", universityId);
       setTeamMembers(usersData || []);
+
+      // Fetch pending invitations
+      const { data: invitationsData } = await supabase
+        .from("team_invitations")
+        .select("*")
+        .eq("university_id", universityId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      setPendingInvitations(invitationsData || []);
 
       // Fetch templates
       const { data: templatesData } = await supabase
@@ -346,17 +357,46 @@ export function SettingsView() {
     if (!universityId || !newInvite.email || !newInvite.name) return;
     setLoading(true);
     try {
-      // Create user with permissions
-      const { error } = await supabase.from("users").insert({
-        name: newInvite.name,
+      // Create invitation record in team_invitations table
+      const { data: invitation, error: inviteError } = await supabase.from("team_invitations").insert({
         email: newInvite.email,
         role: newInvite.role,
-        auth_id: crypto.randomUUID(), // Placeholder
+        status: 'pending',
         university_id: universityId,
-        permissions: newInvite.permissions,
-      });
+        invited_by: profile?.id || null,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        metadata: {
+          name: newInvite.name,
+          permissions: newInvite.permissions
+        }
+      }).select().single();
       
-      if (error) throw error;
+      if (inviteError) throw inviteError;
+
+      // Send invitation email
+      const inviteLink = `${window.location.origin}?invite=${invitation.id}`;
+      const subject = 'You\'ve Been Invited to WorldLynk University Portal';
+      const message = `Hi ${newInvite.name},
+
+You have been invited to join the WorldLynk University Admin Portal as a ${newInvite.role.replace('_', ' ')}.
+
+Click the link below to create your account and get started:
+${inviteLink}
+
+This invitation expires in 7 days.
+
+Best regards,
+WorldLynk Team`;
+
+      await supabase.functions.invoke('supabase-functions-send-email', {
+        body: {
+          to: newInvite.email,
+          toName: newInvite.name,
+          subject,
+          message,
+          universityId
+        }
+      });
       
       setNewInvite({ 
         email: "", 
@@ -375,6 +415,7 @@ export function SettingsView() {
       fetchAllData();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      alert('Invitation sent successfully!');
     } catch (err: any) {
       console.error("Error sending invitation:", err);
       alert(err.message || "Error sending invitation");
@@ -697,7 +738,47 @@ export function SettingsView() {
               </div>
             )}
 
+            {/* Pending Invitations */}
+            {pendingInvitations.length > 0 && (
+              <div className="space-y-3 mb-6">
+                <h4 className="text-sm font-medium text-gray-400">Pending Invitations</h4>
+                {pendingInvitations.map((invite) => (
+                  <div key={invite.id} className="flex items-center justify-between p-4 bg-amber-500/5 rounded-lg border border-amber-500/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{invite.metadata?.name || 'Pending'}</p>
+                        <p className="text-sm text-gray-400">{invite.email}</p>
+                        <p className="text-xs text-amber-400 mt-1">
+                          Expires {new Date(invite.expires_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-amber-500/20 text-amber-400">{invite.role}</Badge>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={async () => {
+                          if (!confirm("Cancel this invitation?")) return;
+                          await supabase.from("team_invitations").delete().eq("id", invite.id);
+                          fetchAllData();
+                        }} 
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Active Team Members */}
             <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-400">Active Team Members</h4>
               {teamMembers.length === 0 ? (
                 <p className="text-gray-400 text-center py-8">No team members yet. Invite your first member to get started.</p>
               ) : (
