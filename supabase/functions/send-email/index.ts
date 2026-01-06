@@ -49,32 +49,112 @@ Deno.serve(async (req) => {
       ? createClient(supabaseUrl, supabaseKey)
       : null;
 
-    // Fetch university name if universityId provided
+    // Fetch university details for branding
     let universityName = senderName || 'WorldLynk';
-    if (universityId && supabaseClient && !senderName) {
+    let universityLogo = '';
+    let brandPrimaryColor = '#F97316';
+    let footerText = 'This is an official communication.';
+    let contactEmail = '';
+    let contactPhone = '';
+    let websiteUrl = '';
+    
+    if (universityId && supabaseClient) {
       const { data: universityData } = await supabaseClient
         .from('universities')
-        .select('name')
+        .select('name, email_logo_url, brand_primary_color, email_footer_text, contact_email, contact_phone, website_url')
         .eq('id', universityId)
         .single();
       
-      if (universityData?.name) {
-        universityName = universityData.name;
+      if (universityData) {
+        universityName = senderName || universityData.name || 'WorldLynk';
+        universityLogo = universityData.email_logo_url || '';
+        brandPrimaryColor = universityData.brand_primary_color || '#F97316';
+        footerText = universityData.email_footer_text || 'This is an official communication.';
+        contactEmail = universityData.contact_email || '';
+        contactPhone = universityData.contact_phone || '';
+        websiteUrl = universityData.website_url || '';
       }
     }
 
-    // Build email content
-    let emailHtml = htmlContent || `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a1a1a;">${subject}</h2>
-        <div style="color: #333; line-height: 1.6;">
-          ${message?.replace(/\n/g, '<br>') || ''}
-        </div>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #666; font-size: 12px;">
-          Sent via ${universityName}
+    // Build professional branded email content
+    const logoSection = universityLogo 
+      ? `<img src="${universityLogo}" alt="${universityName}" style="max-height: 50px; margin-bottom: 15px;">`
+      : '';
+    
+    const contactSection = (contactEmail || contactPhone) 
+      ? `
+        <p style="margin: 10px 0 0; color: #71717a; font-size: 12px;">
+          ${contactEmail ? `Email: <a href="mailto:${contactEmail}" style="color: ${brandPrimaryColor};">${contactEmail}</a>` : ''}
+          ${contactEmail && contactPhone ? ' | ' : ''}
+          ${contactPhone ? `Phone: ${contactPhone}` : ''}
         </p>
-      </div>
+      `
+      : '';
+
+    const websiteSection = websiteUrl
+      ? `<p style="margin: 5px 0 0; color: #71717a; font-size: 12px;"><a href="${websiteUrl}" style="color: ${brandPrimaryColor};">${websiteUrl.replace(/^https?:\/\//, '')}</a></p>`
+      : '';
+
+    let emailHtml = htmlContent || `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, ${brandPrimaryColor} 0%, #ea580c 100%); padding: 30px 40px; text-align: center;">
+              ${logoSection}
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">${universityName}</h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="margin: 0 0 20px; color: #18181b; font-size: 20px; font-weight: 600;">${subject}</h2>
+              
+              <div style="color: #3f3f46; font-size: 16px; line-height: 1.7;">
+                ${message?.replace(/\n/g, '<br>') || ''}
+              </div>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #18181b; padding: 30px 40px; text-align: center;">
+              <p style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 600;">${universityName}</p>
+              <p style="margin: 10px 0 0; color: #a1a1aa; font-size: 13px;">${footerText}</p>
+              ${contactSection}
+              ${websiteSection}
+              <p style="margin: 15px 0 0; color: #52525b; font-size: 11px;">
+                © ${new Date().getFullYear()} ${universityName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Unsubscribe -->
+        <table role="presentation" style="max-width: 600px; margin: 20px auto 0;">
+          <tr>
+            <td style="text-align: center;">
+              <p style="margin: 0; color: #a1a1aa; font-size: 11px;">
+                You received this email because you are associated with ${universityName}.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
     `;
 
     // If template is provided, fetch and populate it

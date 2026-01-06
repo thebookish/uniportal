@@ -173,6 +173,41 @@ export function IntegrationsView() {
         .update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() })
         .eq('id', integrationId);
 
+      // Get the integration details
+      const { data: integration } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', integrationId)
+        .single();
+
+      // If it's Moodle, call the Moodle sync edge function
+      if (type === 'lms' && integration?.provider === 'moodle') {
+        const { data: result, error } = await supabase.functions.invoke('supabase-functions-moodle-sync', {
+          body: {
+            action: 'full_sync',
+            lms_id: integrationId,
+            university_id: universityId
+          }
+        });
+
+        if (error) throw error;
+
+        await supabase
+          .from(table)
+          .update({ sync_status: result?.success ? 'success' : 'error' })
+          .eq('id', integrationId);
+
+        fetchIntegrations();
+        if (result?.success) {
+          const created = (result.courses?.created || 0) + (result.users?.created || 0);
+          const updated = (result.courses?.updated || 0) + (result.users?.updated || 0);
+          alert(`Sync completed! Created: ${created}, Updated: ${updated}`);
+        } else {
+          alert('Sync completed with some errors. Check logs for details.');
+        }
+        return;
+      }
+
       // Log sync attempt
       await supabase.from('sync_logs').insert({
         university_id: universityId,
@@ -180,7 +215,7 @@ export function IntegrationsView() {
         status: 'started'
       });
 
-      // Simulate sync (in production, this would call the actual API)
+      // Simulate sync for non-Moodle integrations
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       await supabase
@@ -195,6 +230,38 @@ export function IntegrationsView() {
       alert('Sync failed: ' + error.message);
     } finally {
       setSyncing(null);
+    }
+  }
+
+  async function testMoodleConnection() {
+    if (!lmsForm.api_url || !lmsForm.api_key) {
+      alert('Please enter API URL and API Key first');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('supabase-functions-moodle-sync', {
+        body: {
+          action: 'test',
+          api_url: lmsForm.api_url,
+          api_key: lmsForm.api_key,
+          university_id: universityId
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        alert(`Connection successful!\n\nSite: ${data.info?.sitename}\nVersion: ${data.info?.release}\nUser: ${data.info?.fullname}`);
+      } else {
+        alert(`Connection failed: ${data?.message || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      console.error('Test connection error:', error);
+      alert('Test failed: ' + error.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -468,10 +535,35 @@ export function IntegrationsView() {
                   className="bg-white/5 border-white/10 text-white"
                 />
               </div>
+              {/* Moodle-specific help text */}
+              {lmsForm.provider === 'moodle' && (
+                <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                  <h4 className="text-sm font-medium text-cyan-400 mb-2">Moodle Setup Instructions</h4>
+                  <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+                    <li>Go to Site administration → Plugins → Web services → External services</li>
+                    <li>Create a new service or use an existing one with required functions</li>
+                    <li>Enable Web services in Site administration → Advanced features</li>
+                    <li>Create a token in Site administration → Plugins → Web services → Manage tokens</li>
+                    <li>Required functions: core_user_get_users, core_course_get_courses, core_enrol_get_enrolled_users</li>
+                  </ol>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
-                <Button variant="outline" onClick={() => setShowAddLMS(false)} className="flex-1 border-white/10 hover:bg-white/5">
+                <Button variant="outline" onClick={() => setShowAddLMS(false)} className="border-white/10 hover:bg-white/5">
                   Cancel
                 </Button>
+                {lmsForm.provider === 'moodle' && lmsForm.api_url && lmsForm.api_key && (
+                  <Button
+                    variant="outline"
+                    onClick={testMoodleConnection}
+                    disabled={saving}
+                    className="border-cyan-500/30 hover:bg-cyan-500/10 text-cyan-400"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Test Connection
+                  </Button>
+                )}
                 <Button
                   onClick={handleAddLMS}
                   disabled={saving || !lmsForm.provider || !lmsForm.name || !lmsForm.api_url}

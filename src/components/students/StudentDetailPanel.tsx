@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ObligationsPanel } from './ObligationsPanel';
+import { DocumentRequestModal } from '@/components/documents/DocumentRequestModal';
 
 interface StudentDetailPanelProps {
   studentId: string;
@@ -27,13 +28,15 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   const [sendingMessage, setSendingMessage] = useState(false);
   const [schedulingMeeting, setSchedulingMeeting] = useState(false);
   const [initiatingIntervention, setInitiatingIntervention] = useState(false);
-  const [requestingDocs, setRequestingDocs] = useState(false);
   
   // Meeting modal state
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('10:00');
   const [meetingLink, setMeetingLink] = useState('');
+  
+  // Document request modal state
+  const [showDocRequestModal, setShowDocRequestModal] = useState(false);
 
   useEffect(() => {
     fetchStudent();
@@ -211,51 +214,12 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
     }
   }
 
-  async function requestDocuments() {
-    if (!universityId || !student?.email) {
+  function openDocRequestModal() {
+    if (!student?.email) {
       alert('Student email not available');
       return;
     }
-    setRequestingDocs(true);
-    try {
-      const subject = 'Documents Required - Action Needed';
-      const message = `Dear ${student?.name},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`;
-
-      await supabase.from('documents').insert([
-        { student_id: studentId, name: 'Transcript', status: 'pending', university_id: universityId },
-        { student_id: studentId, name: 'ID Document', status: 'pending', university_id: universityId },
-        { student_id: studentId, name: 'English Proficiency', status: 'pending', university_id: universityId }
-      ]);
-      
-      await supabase.from('communications').insert({
-        student_id: studentId,
-        type: 'email',
-        subject,
-        message,
-        status: 'sent',
-        university_id: universityId
-      });
-
-      // Send actual email
-      await supabase.functions.invoke('supabase-functions-send-email', {
-        body: {
-          to: student.email,
-          toName: student.name,
-          subject,
-          message,
-          studentId,
-          universityId
-        }
-      });
-
-      fetchStudent();
-      alert('Document request sent successfully!');
-    } catch (error) {
-      console.error('Error requesting documents:', error);
-      alert('Error requesting documents');
-    } finally {
-      setRequestingDocs(false);
-    }
+    setShowDocRequestModal(true);
   }
 
   async function initiateIntervention() {
@@ -623,15 +587,10 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={requestDocuments}
-                disabled={requestingDocs}
+                onClick={openDocRequestModal}
                 className="border-white/10 hover:bg-white/5"
               >
-                {requestingDocs ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Requesting...</>
-                ) : (
-                  <><Upload className="w-4 h-4 mr-2" />Request</>
-                )}
+                <Upload className="w-4 h-4 mr-2" />Request
               </Button>
             </div>
             <div className="space-y-3">
@@ -777,6 +736,21 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Request Modal */}
+      {showDocRequestModal && student && (
+        <DocumentRequestModal
+          studentId={studentId}
+          studentName={student.name}
+          studentEmail={student.email}
+          existingDocs={student.documents || []}
+          onClose={() => setShowDocRequestModal(false)}
+          onSuccess={() => {
+            fetchStudent();
+            setShowDocRequestModal(false);
+          }}
+        />
       )}
     </div>
   );

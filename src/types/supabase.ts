@@ -325,6 +325,50 @@ export type Database = {
           },
         ]
       }
+      document_types: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_required: boolean | null
+          name: string
+          university_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_required?: boolean | null
+          name: string
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_required?: boolean | null
+          name?: string
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_types_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string | null
@@ -451,10 +495,13 @@ export type Database = {
           body_text: string | null
           category: string | null
           created_at: string | null
+          description: string | null
           id: string
           is_active: boolean | null
+          is_default: boolean | null
           name: string
           subject: string
+          trigger_stage: string | null
           university_id: string | null
           updated_at: string | null
           variables: string[] | null
@@ -464,10 +511,13 @@ export type Database = {
           body_text?: string | null
           category?: string | null
           created_at?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean | null
+          is_default?: boolean | null
           name: string
           subject: string
+          trigger_stage?: string | null
           university_id?: string | null
           updated_at?: string | null
           variables?: string[] | null
@@ -477,10 +527,13 @@ export type Database = {
           body_text?: string | null
           category?: string | null
           created_at?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean | null
+          is_default?: boolean | null
           name?: string
           subject?: string
+          trigger_stage?: string | null
           university_id?: string | null
           updated_at?: string | null
           variables?: string[] | null
@@ -1035,31 +1088,55 @@ export type Database = {
       }
       universities: {
         Row: {
+          address: string | null
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
+          contact_email: string | null
+          contact_phone: string | null
           created_at: string | null
           domain: string | null
+          email_footer_text: string | null
+          email_logo_url: string | null
           id: string
           logo_url: string | null
           name: string
           settings: Json | null
           updated_at: string | null
+          website_url: string | null
         }
         Insert: {
+          address?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           domain?: string | null
+          email_footer_text?: string | null
+          email_logo_url?: string | null
           id?: string
           logo_url?: string | null
           name: string
           settings?: Json | null
           updated_at?: string | null
+          website_url?: string | null
         }
         Update: {
+          address?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           domain?: string | null
+          email_footer_text?: string | null
+          email_logo_url?: string | null
           id?: string
           logo_url?: string | null
           name?: string
           settings?: Json | null
           updated_at?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }

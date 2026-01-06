@@ -17,6 +17,13 @@ import {
   UserX,
   Shield,
   Clock,
+  Palette,
+  Globe,
+  Phone,
+  MapPin,
+  FileText,
+  Edit,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +39,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 
 const settingsSections = [
   {
@@ -41,10 +49,22 @@ const settingsSections = [
     description: "Update university name, campuses, and departments",
   },
   {
+    id: "branding",
+    title: "Email Branding",
+    icon: Palette,
+    description: "Customize email appearance and branding",
+  },
+  {
     id: "programs",
     title: "Programs",
     icon: GraduationCap,
     description: "Manage programs and intakes",
+  },
+  {
+    id: "documents",
+    title: "Document Types",
+    icon: FileText,
+    description: "Configure required documents for students",
   },
   {
     id: "automation",
@@ -113,6 +133,24 @@ export function SettingsView() {
   // Templates
   const [templates, setTemplates] = useState<any[]>([]);
   const [newTemplate, setNewTemplate] = useState({ name: "", subject: "", body: "" });
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+
+  // Branding settings
+  const [brandingData, setBrandingData] = useState({
+    email_logo_url: "",
+    email_footer_text: "This is an official communication from the university admissions office.",
+    brand_primary_color: "#F97316",
+    brand_secondary_color: "#111827",
+    contact_email: "",
+    contact_phone: "",
+    website_url: "",
+    address: "",
+  });
+
+  // Document types
+  const [documentTypes, setDocumentTypes] = useState<any[]>([]);
+  const [newDocType, setNewDocType] = useState({ name: "", description: "", is_required: false, category: "general" });
 
   // AI settings
   const [aiSettings, setAiSettings] = useState({
@@ -159,6 +197,16 @@ export function SettingsView() {
           auto_alerts_enabled: (uniData.settings as any)?.ai_settings?.auto_alerts_enabled ?? true,
           auto_recommendations_enabled: (uniData.settings as any)?.ai_settings?.auto_recommendations_enabled ?? true,
         });
+        setBrandingData({
+          email_logo_url: uniData.email_logo_url || "",
+          email_footer_text: uniData.email_footer_text || "This is an official communication from the university admissions office.",
+          brand_primary_color: uniData.brand_primary_color || "#F97316",
+          brand_secondary_color: uniData.brand_secondary_color || "#111827",
+          contact_email: uniData.contact_email || "",
+          contact_phone: uniData.contact_phone || "",
+          website_url: uniData.website_url || "",
+          address: uniData.address || "",
+        });
       }
 
       // Fetch programs
@@ -200,6 +248,14 @@ export function SettingsView() {
         .eq("university_id", universityId)
         .order("created_at", { ascending: false });
       setAutomationRules(rulesData || []);
+
+      // Fetch document types
+      const { data: docTypesData } = await supabase
+        .from("document_types")
+        .select("*")
+        .eq("university_id", universityId)
+        .order("display_order", { ascending: true });
+      setDocumentTypes(docTypesData || []);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -350,6 +406,79 @@ export function SettingsView() {
       fetchAllData();
     } catch (err) {
       console.error("Error toggling rule:", err);
+    }
+  }
+
+  async function saveBranding() {
+    if (!universityId) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("universities")
+        .update({
+          email_logo_url: brandingData.email_logo_url,
+          email_footer_text: brandingData.email_footer_text,
+          brand_primary_color: brandingData.brand_primary_color,
+          brand_secondary_color: brandingData.brand_secondary_color,
+          contact_email: brandingData.contact_email,
+          contact_phone: brandingData.contact_phone,
+          website_url: brandingData.website_url,
+          address: brandingData.address,
+        })
+        .eq("id", universityId);
+
+      if (error) throw error;
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Error saving branding:", err);
+      alert("Error saving branding settings");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addDocumentType() {
+    if (!universityId || !newDocType.name) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("document_types").insert({
+        name: newDocType.name,
+        description: newDocType.description,
+        is_required: newDocType.is_required,
+        category: newDocType.category,
+        university_id: universityId,
+        display_order: documentTypes.length,
+      });
+      if (error) throw error;
+      setNewDocType({ name: "", description: "", is_required: false, category: "general" });
+      fetchAllData();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Error adding document type:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteDocumentType(id: string) {
+    if (!confirm("Delete this document type?")) return;
+    try {
+      await supabase.from("document_types").delete().eq("id", id);
+      fetchAllData();
+    } catch (err) {
+      console.error("Error deleting document type:", err);
+    }
+  }
+
+  async function toggleDocumentRequired(id: string, isRequired: boolean) {
+    try {
+      await supabase.from("document_types").update({ is_required: !isRequired }).eq("id", id);
+      fetchAllData();
+    } catch (err) {
+      console.error("Error updating document type:", err);
     }
   }
 
@@ -554,6 +683,228 @@ WorldLynk Team`;
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save Changes
             </Button>
+          </div>
+        );
+
+      case "branding":
+        return (
+          <div className="space-y-6">
+            <div className="p-4 border border-cyan-500/20 rounded-lg bg-cyan-500/5">
+              <p className="text-sm text-cyan-400">
+                <Palette className="w-4 h-4 inline mr-2" />
+                These settings control how your emails appear to students. A professional appearance builds trust and increases email engagement.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Globe className="w-4 h-4 inline mr-2" />
+                  Email Logo URL
+                </label>
+                <Input
+                  value={brandingData.email_logo_url}
+                  onChange={(e) => setBrandingData({ ...brandingData, email_logo_url: e.target.value })}
+                  placeholder="https://your-university.edu/logo.png"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+                <p className="text-xs text-gray-500 mt-1">Logo will appear in email header (max height: 50px)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Globe className="w-4 h-4 inline mr-2" />
+                  Website URL
+                </label>
+                <Input
+                  value={brandingData.website_url}
+                  onChange={(e) => setBrandingData({ ...brandingData, website_url: e.target.value })}
+                  placeholder="https://your-university.edu"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Palette className="w-4 h-4 inline mr-2" />
+                  Primary Brand Color
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={brandingData.brand_primary_color}
+                    onChange={(e) => setBrandingData({ ...brandingData, brand_primary_color: e.target.value })}
+                    className="w-12 h-10 rounded cursor-pointer border-0"
+                  />
+                  <Input
+                    value={brandingData.brand_primary_color}
+                    onChange={(e) => setBrandingData({ ...brandingData, brand_primary_color: e.target.value })}
+                    placeholder="#F97316"
+                    className="flex-1 bg-white/5 border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Palette className="w-4 h-4 inline mr-2" />
+                  Secondary Brand Color
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={brandingData.brand_secondary_color}
+                    onChange={(e) => setBrandingData({ ...brandingData, brand_secondary_color: e.target.value })}
+                    className="w-12 h-10 rounded cursor-pointer border-0"
+                  />
+                  <Input
+                    value={brandingData.brand_secondary_color}
+                    onChange={(e) => setBrandingData({ ...brandingData, brand_secondary_color: e.target.value })}
+                    placeholder="#111827"
+                    className="flex-1 bg-white/5 border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Contact Email
+                </label>
+                <Input
+                  type="email"
+                  value={brandingData.contact_email}
+                  onChange={(e) => setBrandingData({ ...brandingData, contact_email: e.target.value })}
+                  placeholder="admissions@university.edu"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Phone className="w-4 h-4 inline mr-2" />
+                  Contact Phone
+                </label>
+                <Input
+                  value={brandingData.contact_phone}
+                  onChange={(e) => setBrandingData({ ...brandingData, contact_phone: e.target.value })}
+                  placeholder="+1 (555) 123-4567"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <MapPin className="w-4 h-4 inline mr-2" />
+                Address
+              </label>
+              <Input
+                value={brandingData.address}
+                onChange={(e) => setBrandingData({ ...brandingData, address: e.target.value })}
+                placeholder="123 University Ave, City, State 12345"
+                className="bg-white/5 border-white/10 text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Email Footer Text</label>
+              <textarea
+                value={brandingData.email_footer_text}
+                onChange={(e) => setBrandingData({ ...brandingData, email_footer_text: e.target.value })}
+                placeholder="This is an official communication from the university admissions office."
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+            </div>
+
+            <Button onClick={saveBranding} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Branding
+            </Button>
+          </div>
+        );
+
+      case "documents":
+        return (
+          <div className="space-y-6">
+            <div className="p-4 border border-white/10 rounded-lg bg-white/5">
+              <h3 className="text-lg font-semibold text-white mb-4">Add Document Type</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  value={newDocType.name}
+                  onChange={(e) => setNewDocType({ ...newDocType, name: e.target.value })}
+                  placeholder="Document name (e.g., Academic Transcript)"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+                <Input
+                  value={newDocType.description}
+                  onChange={(e) => setNewDocType({ ...newDocType, description: e.target.value })}
+                  placeholder="Description"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+                <select
+                  value={newDocType.category}
+                  onChange={(e) => setNewDocType({ ...newDocType, category: e.target.value })}
+                  className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="general">General</option>
+                  <option value="academic">Academic</option>
+                  <option value="identity">Identity</option>
+                  <option value="language">Language</option>
+                  <option value="financial">Financial</option>
+                  <option value="application">Application</option>
+                  <option value="immigration">Immigration</option>
+                  <option value="health">Health</option>
+                </select>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={newDocType.is_required}
+                    onCheckedChange={(checked) => setNewDocType({ ...newDocType, is_required: checked })}
+                  />
+                  <span className="text-sm text-gray-300">Required Document</span>
+                </div>
+              </div>
+              <Button onClick={addDocumentType} disabled={loading || !newDocType.name} className="mt-4 bg-orange-500 hover:bg-orange-600">
+                <Plus className="w-4 h-4 mr-2" /> Add Document Type
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-white">Document Types ({documentTypes.length})</h3>
+              {documentTypes.length === 0 ? (
+                <p className="text-gray-400">No document types configured yet. Add some above.</p>
+              ) : (
+                documentTypes.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                    <div className="flex items-center gap-4">
+                      <FileText className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{doc.name}</p>
+                          <Badge className="bg-gray-500/20 text-gray-400 text-xs">{doc.category}</Badge>
+                          {doc.is_required && (
+                            <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-xs">Required</Badge>
+                          )}
+                        </div>
+                        {doc.description && (
+                          <p className="text-sm text-gray-400">{doc.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={doc.is_required}
+                        onCheckedChange={() => toggleDocumentRequired(doc.id, doc.is_required)}
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => deleteDocumentType(doc.id)} className="text-red-400 hover:text-red-300">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         );
 
@@ -823,51 +1174,65 @@ WorldLynk Team`;
       case "templates":
         return (
           <div className="space-y-6">
-            <div className="p-4 border border-white/10 rounded-lg bg-white/5">
-              <h3 className="text-lg font-semibold text-white mb-4">Add New Template</h3>
-              <div className="space-y-4">
-                <Input
-                  value={newTemplate.name}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                  placeholder="Template name"
-                  className="bg-white/5 border-white/10 text-white"
-                />
-                <Input
-                  value={newTemplate.subject}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
-                  placeholder="Email subject"
-                  className="bg-white/5 border-white/10 text-white"
-                />
-                <textarea
-                  value={newTemplate.body}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })}
-                  placeholder="Email body (use {name} for personalization)"
-                  className="w-full h-32 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white placeholder:text-gray-500"
-                />
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Email Templates ({templates.length})</h3>
+                <p className="text-sm text-gray-400">Create professional email templates with custom branding</p>
               </div>
-              <Button
-                onClick={addTemplate}
-                disabled={loading || !newTemplate.name || !newTemplate.subject}
-                className="mt-4 bg-orange-500 hover:bg-orange-600"
+              <Button 
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setShowTemplateEditor(true);
+                }} 
+                className="bg-orange-500 hover:bg-orange-600"
               >
-                <Plus className="w-4 h-4 mr-2" /> Add Template
+                <Plus className="w-4 h-4 mr-2" /> Create Template
               </Button>
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-white">Existing Templates ({templates.length})</h3>
               {templates.length === 0 ? (
-                <p className="text-gray-400">No templates added yet</p>
+                <div className="text-center py-12 bg-white/5 rounded-lg border border-white/10">
+                  <MessageSquare className="w-12 h-12 mx-auto text-gray-500 mb-3" />
+                  <p className="text-gray-400">No templates created yet</p>
+                  <p className="text-sm text-gray-500 mt-1">Create your first template to start sending branded emails</p>
+                </div>
               ) : (
                 templates.map((template) => (
-                  <div key={template.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
-                    <div>
-                      <p className="text-white font-medium">{template.name}</p>
-                      <p className="text-sm text-gray-400">Subject: {template.subject}</p>
+                  <div key={template.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 rounded-lg bg-orange-500/10">
+                        <Mail className="w-5 h-5 text-orange-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{template.name}</p>
+                          {template.category && (
+                            <Badge className="bg-gray-500/20 text-gray-400 text-xs">{template.category}</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">Subject: {template.subject}</p>
+                        {template.description && (
+                          <p className="text-xs text-gray-500 mt-1">{template.description}</p>
+                        )}
+                      </div>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => deleteTemplate(template.id)} className="text-red-400 hover:text-red-300">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          setEditingTemplate(template);
+                          setShowTemplateEditor(true);
+                        }}
+                        className="border-white/10 hover:bg-white/5"
+                      >
+                        <Edit className="w-4 h-4 mr-1" /> Edit
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deleteTemplate(template.id)} className="text-red-400 hover:text-red-300">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1008,6 +1373,18 @@ WorldLynk Team`;
 
         <div className="lg:col-span-3 glass-card p-4 md:p-6">{renderContent()}</div>
       </div>
+
+      {/* Email Template Editor Modal */}
+      {showTemplateEditor && (
+        <EmailTemplateEditor
+          template={editingTemplate}
+          onSave={() => fetchAllData()}
+          onClose={() => {
+            setShowTemplateEditor(false);
+            setEditingTemplate(null);
+          }}
+        />
+      )}
     </div>
   );
 }
