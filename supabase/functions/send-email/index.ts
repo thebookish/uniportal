@@ -165,25 +165,39 @@ Deno.serve(async (req) => {
         .eq('id', templateId)
         .single();
       
-      if (template) {
-        emailHtml = template.body_html;
-        // Replace variables
-        if (variables) {
-          Object.entries(variables).forEach(([key, value]) => {
-            emailHtml = emailHtml.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
-          });
-        }
+      if (template && template.body_html) {
+        // Use template HTML and replace ALL variables including branding
+        let templateHtml = template.body_html;
+        
+        // Replace all template variables with actual values
+        const allVariables: Record<string, string> = {
+          ...variables,
+          student_name: toName || variables?.student_name || '',
+          first_name: (toName || variables?.student_name || '').split(' ')[0],
+          university_name: universityName,
+          brand_primary_color: brandPrimaryColor,
+          contact_email: contactEmail,
+          contact_phone: contactPhone,
+          portal_link: websiteUrl || 'https://portal.worldlynk.co.uk',
+        };
+
+        Object.entries(allVariables).forEach(([key, value]) => {
+          if (value) {
+            templateHtml = templateHtml.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+          }
+        });
+        
+        emailHtml = templateHtml;
       }
     }
 
-    // Clean up HTML to prevent Quoted-Printable encoding issues (=20)
-    // Remove excessive whitespace and ensure proper line breaks
+    // Minify HTML to prevent Quoted-Printable encoding issues (=20)
+    // This happens when lines exceed 76 characters in the SMTP transfer
     emailHtml = emailHtml
-      .replace(/[\t]+/g, '') // Remove tabs
-      .replace(/  +/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .replace(/>\s+</g, '><') // Remove whitespace between tags
-      .trim();
+      .split('\n')
+      .map(line => line.trim())
+      .join('')
+      .replace(/>\s+</g, '><');
 
     let emailSent = false;
     let emailError = null;

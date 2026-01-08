@@ -114,52 +114,6 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
     }
   }
 
-  async function requestDocuments(studentId: string) {
-    if (!universityId) return;
-    setActionLoading(studentId);
-    try {
-      const student = students.find(s => s.id === studentId);
-      const subject = 'Documents Required - Action Needed';
-      const message = `Dear ${student?.name || 'Student'},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`;
-
-      await supabase.from('documents').insert([
-        { student_id: studentId, name: 'Transcript', status: 'pending', university_id: universityId },
-        { student_id: studentId, name: 'ID Document', status: 'pending', university_id: universityId },
-        { student_id: studentId, name: 'English Proficiency', status: 'pending', university_id: universityId }
-      ]);
-      await supabase.from('communications').insert({
-        student_id: studentId,
-        type: 'email',
-        subject,
-        message,
-        status: 'sent',
-        university_id: universityId
-      });
-
-      // Send actual email
-      if (student?.email) {
-        await supabase.functions.invoke('supabase-functions-send-email', {
-          body: {
-            to: student.email,
-            toName: student.name,
-            subject,
-            message,
-            studentId,
-            universityId
-          }
-        });
-      }
-
-      refetch();
-      alert('Document request sent successfully!');
-    } catch (error) {
-      console.error('Error requesting documents:', error);
-      alert('Error requesting documents. Please try again.');
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
   async function moveToApplication(studentId: string) {
     setActionLoading(studentId);
     try {
@@ -313,7 +267,7 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => requestDocuments(student.id)}
+                          onClick={() => openDocumentRequestModal(student.id)}
                           disabled={actionLoading === student.id}
                           className="border-white/10 hover:bg-white/5"
                         >
@@ -342,7 +296,7 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => requestDocuments(student.id)}
+                          onClick={() => openDocumentRequestModal(student.id)}
                           disabled={actionLoading === student.id}
                           className="border-white/10 hover:bg-white/5"
                         >
@@ -351,7 +305,7 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => issueOffer(student.id)}
+                          onClick={() => openOfferModal(student.id)}
                           disabled={actionLoading === student.id || pendingDocs > 0}
                           className="bg-green-500 hover:bg-green-600 text-white"
                         >
@@ -376,6 +330,61 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Email Modal */}
+      {showEmailModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  {emailModalPurpose === 'offer' ? 'Issue Offer Letter' : 'Request Documents'}
+                </h2>
+                <p className="text-sm text-gray-400">to {selectedStudent.name} ({selectedStudent.email})</p>
+              </div>
+              <button onClick={() => setShowEmailModal(false)} className="p-2 hover:bg-white/5 rounded-lg">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <EmailTemplateSelector
+                onSelect={(template, subject, body) => {
+                  setSelectedTemplate(template);
+                  setEmailSubject(subject);
+                  setEmailBody(body);
+                }}
+                studentName={selectedStudent.name}
+                programName={selectedStudent.programs?.name}
+                initialSubject={emailSubject}
+                initialBody={emailBody}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/10 flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowEmailModal(false)} className="border-white/10 hover:bg-white/5">
+                Cancel
+              </Button>
+              <Button
+                onClick={sendEmailAndExecuteAction}
+                disabled={sendingEmail || !emailSubject || !emailBody}
+                className={cn(
+                  "text-white",
+                  emailModalPurpose === 'offer' 
+                    ? "bg-green-500 hover:bg-green-600" 
+                    : "bg-orange-500 hover:bg-orange-600"
+                )}
+              >
+                {sendingEmail ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+                ) : (
+                  <><Send className="w-4 h-4 mr-2" />{emailModalPurpose === 'offer' ? 'Issue Offer' : 'Send Request'}</>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

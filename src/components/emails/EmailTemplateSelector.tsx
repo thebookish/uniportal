@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { FileText, ChevronDown, Check, Search, Plus, Edit, Eye } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { FileText, ChevronDown, Check, Edit, Eye, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -32,9 +32,7 @@ interface EmailTemplateSelectorProps {
 
 export function EmailTemplateSelector({
   onSelect,
-  selectedTemplateId,
   studentName = 'Student',
-  studentEmail = '',
   programName = '',
   className,
   showPreview = true,
@@ -43,6 +41,7 @@ export function EmailTemplateSelector({
 }: EmailTemplateSelectorProps) {
   const { profile, university } = useAuth();
   const universityId = (profile as any)?.university_id;
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +52,17 @@ export function EmailTemplateSelector({
   const [body, setBody] = useState(initialBody);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     fetchTemplates();
   }, [universityId]);
@@ -62,14 +72,17 @@ export function EmailTemplateSelector({
   }, [subject, body, selectedTemplate]);
 
   async function fetchTemplates() {
-    if (!universityId) return;
+    if (!universityId) {
+      setLoading(false);
+      return;
+    }
     try {
       const { data } = await supabase
         .from('email_templates')
         .select('*')
         .eq('university_id', universityId)
         .eq('is_active', true)
-        .order('category', { ascending: true });
+        .order('name', { ascending: true });
       
       setTemplates(data || []);
     } catch (error) {
@@ -80,6 +93,7 @@ export function EmailTemplateSelector({
   }
 
   function applyVariables(text: string): string {
+    if (!text) return '';
     const variables: Record<string, string> = {
       student_name: studentName,
       first_name: studentName.split(' ')[0],
@@ -93,7 +107,9 @@ export function EmailTemplateSelector({
 
     let result = text;
     Object.entries(variables).forEach(([key, value]) => {
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+      if (value) {
+        result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+      }
     });
     return result;
   }
@@ -102,15 +118,31 @@ export function EmailTemplateSelector({
     setSelectedTemplate(template);
     setSubject(applyVariables(template.subject));
     
-    // Extract text from HTML or use body_text
+    // For the editable message field, use body_text if available
+    // Otherwise keep the body empty since the HTML template will be used for sending
     if (template.body_text) {
       setBody(applyVariables(template.body_text));
     } else {
-      // Simple HTML to text conversion for the message field
+      // Extract meaningful text content from HTML
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = template.body_html;
-      const textContent = tempDiv.textContent || tempDiv.innerText || '';
-      setBody(applyVariables(textContent.replace(/\s+/g, ' ').trim()));
+      
+      // Remove script and style elements
+      tempDiv.querySelectorAll('script, style').forEach(el => el.remove());
+      
+      // Get text content and clean it up
+      let textContent = tempDiv.textContent || tempDiv.innerText || '';
+      textContent = textContent
+        .replace(/\s+/g, ' ')
+        .replace(/\s*\n\s*/g, '\n')
+        .trim();
+      
+      // If the extracted text is too messy (from complex HTML), use a simple message
+      if (textContent.length > 500 || textContent.split(' ').length < 5) {
+        setBody(`Dear ${studentName},\n\n[This email uses an HTML template. Your message will be formatted professionally.]\n\nBest regards`);
+      } else {
+        setBody(applyVariables(textContent));
+      }
     }
     
     setShowDropdown(false);
@@ -120,6 +152,7 @@ export function EmailTemplateSelector({
     setSelectedTemplate(null);
     setSubject(initialSubject);
     setBody(initialBody);
+    setShowDropdown(false);
   }
 
   const filteredTemplates = templates.filter(t =>
@@ -128,121 +161,120 @@ export function EmailTemplateSelector({
     t.subject.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const categories = [...new Set(templates.map(t => t.category).filter(Boolean))];
+  const groupedTemplates = filteredTemplates.reduce((acc, template) => {
+    const category = template.category || 'Other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(template);
+    return acc;
+  }, {} as Record<string, EmailTemplate[]>);
 
   return (
     <div className={cn("space-y-4", className)}>
       {/* Template Selector */}
-      <div className="relative">
+      <div className="relative" ref={dropdownRef}>
         <label className="block text-sm font-medium text-gray-300 mb-2">
-          Email Template (optional)
+          Email Template
         </label>
         <button
           type="button"
           onClick={() => setShowDropdown(!showDropdown)}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors"
+          className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors"
         >
           <span className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-gray-400" />
             {selectedTemplate ? (
               <span className="text-white">{selectedTemplate.name}</span>
             ) : (
-              <span className="text-gray-400">Select a template or write custom...</span>
+              <span className="text-gray-400">Custom message (no template)</span>
             )}
           </span>
-          <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", showDropdown && "rotate-180")} />
+          <div className="flex items-center gap-2">
+            {selectedTemplate && (
+              <span 
+                onClick={(e) => { e.stopPropagation(); clearTemplate(); }}
+                className="p-1 hover:bg-white/10 rounded"
+              >
+                <X className="w-3 h-3 text-gray-400" />
+              </span>
+            )}
+            <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", showDropdown && "rotate-180")} />
+          </div>
         </button>
 
         {/* Dropdown */}
         {showDropdown && (
-          <div className="absolute z-50 w-full mt-2 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl max-h-80 overflow-hidden">
-            <div className="p-2 border-b border-white/10">
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search templates..."
-                className="bg-white/5 border-white/10 text-white text-sm"
-              />
-            </div>
+          <div className="absolute z-50 w-full mt-2 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+            {templates.length > 5 && (
+              <div className="p-2 border-b border-white/10">
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search templates..."
+                  className="bg-white/5 border-white/10 text-white text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
             
-            <div className="max-h-60 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto">
               {/* Custom option */}
               <button
+                type="button"
                 onClick={clearTemplate}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 text-left",
+                  "w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 text-left border-b border-white/5",
                   !selectedTemplate && "bg-orange-500/10"
                 )}
               >
                 <div className="flex items-center gap-2">
                   <Edit className="w-4 h-4 text-gray-400" />
-                  <span className="text-white">Write custom message</span>
+                  <div>
+                    <span className="text-white text-sm">Custom message</span>
+                    <p className="text-xs text-gray-500">Write your own email content</p>
+                  </div>
                 </div>
                 {!selectedTemplate && <Check className="w-4 h-4 text-orange-400" />}
               </button>
 
               {/* Templates by category */}
-              {categories.map(category => {
-                const categoryTemplates = filteredTemplates.filter(t => t.category === category);
-                if (categoryTemplates.length === 0) return null;
-                
-                return (
-                  <div key={category}>
-                    <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wider bg-white/5">
-                      {category}
-                    </div>
-                    {categoryTemplates.map(template => (
-                      <button
-                        key={template.id}
-                        onClick={() => selectTemplate(template)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 text-left",
-                          selectedTemplate?.id === template.id && "bg-orange-500/10"
-                        )}
-                      >
-                        <div>
-                          <p className="text-white text-sm">{template.name}</p>
-                          <p className="text-xs text-gray-400 truncate max-w-[280px]">{template.subject}</p>
-                        </div>
-                        {selectedTemplate?.id === template.id && (
-                          <Check className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                        )}
-                      </button>
-                    ))}
+              {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+                <div key={category}>
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white/5 sticky top-0">
+                    {category}
                   </div>
-                );
-              })}
-
-              {/* Templates without category */}
-              {filteredTemplates.filter(t => !t.category).map(template => (
-                <button
-                  key={template.id}
-                  onClick={() => selectTemplate(template)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 text-left",
-                    selectedTemplate?.id === template.id && "bg-orange-500/10"
-                  )}
-                >
-                  <div>
-                    <p className="text-white text-sm">{template.name}</p>
-                    <p className="text-xs text-gray-400 truncate max-w-[280px]">{template.subject}</p>
-                  </div>
-                  {selectedTemplate?.id === template.id && (
-                    <Check className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                  )}
-                </button>
+                  {categoryTemplates.map(template => (
+                    <button
+                      type="button"
+                      key={template.id}
+                      onClick={() => selectTemplate(template)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 text-left",
+                        selectedTemplate?.id === template.id && "bg-orange-500/10"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium">{template.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{template.subject}</p>
+                      </div>
+                      {selectedTemplate?.id === template.id && (
+                        <Check className="w-4 h-4 text-orange-400 flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               ))}
 
               {filteredTemplates.length === 0 && searchTerm && (
                 <p className="px-3 py-4 text-center text-gray-400 text-sm">
-                  No templates found matching "{searchTerm}"
+                  No templates found
                 </p>
               )}
 
-              {templates.length === 0 && (
-                <p className="px-3 py-4 text-center text-gray-400 text-sm">
-                  No templates created yet. Go to Settings → Email Templates to create one.
-                </p>
+              {templates.length === 0 && !loading && (
+                <div className="px-3 py-4 text-center">
+                  <p className="text-gray-400 text-sm">No templates created yet</p>
+                  <p className="text-gray-500 text-xs mt-1">Go to Settings → Email Templates</p>
+                </div>
               )}
             </div>
           </div>
@@ -263,24 +295,29 @@ export function EmailTemplateSelector({
       {/* Message Body */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-300">Message *</label>
+          <label className="block text-sm font-medium text-gray-300">
+            Message *
+            {selectedTemplate && <span className="text-gray-500 font-normal ml-2">(editable preview)</span>}
+          </label>
           {selectedTemplate && showPreview && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setShowHtmlPreview(!showHtmlPreview)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+              className="text-xs text-cyan-400 hover:text-cyan-300 h-auto py-1"
             >
-              <Eye className="w-3 h-3" />
-              {showHtmlPreview ? 'Edit Message' : 'Preview HTML'}
-            </button>
+              <Eye className="w-3 h-3 mr-1" />
+              {showHtmlPreview ? 'Edit' : 'Preview Email'}
+            </Button>
           )}
         </div>
         
         {showHtmlPreview && selectedTemplate ? (
-          <div className="rounded-lg overflow-hidden border border-white/10">
+          <div className="rounded-lg overflow-hidden border border-white/10 bg-white">
             <iframe
               srcDoc={applyVariables(selectedTemplate.body_html)}
-              className="w-full h-64 bg-white"
+              className="w-full h-72 border-0"
               title="Email Preview"
             />
           </div>
@@ -290,19 +327,24 @@ export function EmailTemplateSelector({
             onChange={(e) => setBody(e.target.value)}
             placeholder="Enter your message here..."
             rows={6}
-            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 resize-none"
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 resize-none font-sans"
           />
         )}
       </div>
 
-      {/* Selected template info */}
+      {/* Template indicator */}
       {selectedTemplate && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <FileText className="w-3 h-3" />
-          Using template: <span className="text-cyan-400">{selectedTemplate.name}</span>
-          {selectedTemplate.category && (
-            <Badge className="bg-gray-500/20 text-gray-400 text-xs">{selectedTemplate.category}</Badge>
-          )}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm text-gray-300">
+              Using: <span className="text-cyan-400 font-medium">{selectedTemplate.name}</span>
+            </span>
+            {selectedTemplate.category && (
+              <Badge className="bg-gray-500/20 text-gray-400 text-xs">{selectedTemplate.category}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">Email will use the HTML template design</p>
         </div>
       )}
     </div>

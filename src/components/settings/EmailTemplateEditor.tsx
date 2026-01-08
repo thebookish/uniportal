@@ -158,14 +158,15 @@ export function EmailTemplateEditor({ template, onSave, onClose }: EmailTemplate
       counselor_name: 'Sarah Johnson',
       intake_date: 'September 2025',
       deadline: 'March 31, 2025',
-      portal_link: '#',
-      contact_email: university?.contact_email || 'admissions@university.edu',
-      contact_phone: university?.contact_phone || '+1 (555) 123-4567',
-      brand_primary_color: university?.brand_primary_color || '#F97316',
+      portal_link: 'https://portal.example.com',
+      contact_email: (university as any)?.contact_email || 'admissions@university.edu',
+      contact_phone: (university as any)?.contact_phone || '+1 (555) 123-4567',
+      brand_primary_color: (university as any)?.brand_primary_color || '#F97316',
     };
 
     Object.entries(sampleData).forEach(([key, value]) => {
-      html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
+      // Use escaped regex to properly match {{variable}}
+      html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
     });
 
     return html;
