@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileText, ChevronDown, Check, Edit, Eye, X } from 'lucide-react';
+import { FileText, ChevronDown, Check, Edit, Eye, X, Code } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -20,12 +20,9 @@ interface EmailTemplate {
 
 interface EmailTemplateSelectorProps {
   onSelect: (template: EmailTemplate | null, subject: string, body: string) => void;
-  selectedTemplateId?: string;
   studentName?: string;
-  studentEmail?: string;
   programName?: string;
   className?: string;
-  showPreview?: boolean;
   initialSubject?: string;
   initialBody?: string;
 }
@@ -35,7 +32,6 @@ export function EmailTemplateSelector({
   studentName = 'Student',
   programName = '',
   className,
-  showPreview = true,
   initialSubject = '',
   initialBody = ''
 }: EmailTemplateSelectorProps) {
@@ -50,7 +46,7 @@ export function EmailTemplateSelector({
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
-  const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -118,33 +114,15 @@ export function EmailTemplateSelector({
     setSelectedTemplate(template);
     setSubject(applyVariables(template.subject));
     
-    // For the editable message field, use body_text if available
-    // Otherwise keep the body empty since the HTML template will be used for sending
+    // Use body_text if available, otherwise use a friendly default message
     if (template.body_text) {
       setBody(applyVariables(template.body_text));
     } else {
-      // Extract meaningful text content from HTML
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = template.body_html;
-      
-      // Remove script and style elements
-      tempDiv.querySelectorAll('script, style').forEach(el => el.remove());
-      
-      // Get text content and clean it up
-      let textContent = tempDiv.textContent || tempDiv.innerText || '';
-      textContent = textContent
-        .replace(/\s+/g, ' ')
-        .replace(/\s*\n\s*/g, '\n')
-        .trim();
-      
-      // If the extracted text is too messy (from complex HTML), use a simple message
-      if (textContent.length > 500 || textContent.split(' ').length < 5) {
-        setBody(`Dear ${studentName},\n\n[This email uses an HTML template. Your message will be formatted professionally.]\n\nBest regards`);
-      } else {
-        setBody(applyVariables(textContent));
-      }
+      // Set a simple editable message - the HTML template will be used for the actual email
+      setBody(`Dear ${studentName},\n\nThank you for your interest. We look forward to connecting with you.\n\nBest regards,\n${university?.name || 'The Team'}`);
     }
     
+    setViewMode('preview');
     setShowDropdown(false);
   }
 
@@ -152,6 +130,7 @@ export function EmailTemplateSelector({
     setSelectedTemplate(null);
     setSubject(initialSubject);
     setBody(initialBody);
+    setViewMode('edit');
     setShowDropdown(false);
   }
 
@@ -292,59 +271,111 @@ export function EmailTemplateSelector({
         />
       </div>
 
-      {/* Message Body */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-300">
-            Message *
-            {selectedTemplate && <span className="text-gray-500 font-normal ml-2">(editable preview)</span>}
-          </label>
-          {selectedTemplate && showPreview && (
+      {/* When template is selected, show view mode toggle and content */}
+      {selectedTemplate ? (
+        <div className="space-y-3">
+          {/* View Mode Toggle */}
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-300">Email Content</label>
+            <div className="flex rounded-lg overflow-hidden border border-white/10">
+              <button
+                type="button"
+                onClick={() => setViewMode('preview')}
+                className={cn(
+                  "px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors",
+                  viewMode === 'preview' 
+                    ? "bg-orange-500 text-white" 
+                    : "bg-white/5 text-gray-400 hover:bg-white/10"
+                )}
+              >
+                <Eye className="w-3 h-3" />
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('edit')}
+                className={cn(
+                  "px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors",
+                  viewMode === 'edit' 
+                    ? "bg-orange-500 text-white" 
+                    : "bg-white/5 text-gray-400 hover:bg-white/10"
+                )}
+              >
+                <Edit className="w-3 h-3" />
+                Edit Text
+              </button>
+            </div>
+          </div>
+
+          {/* Content Area */}
+          {viewMode === 'preview' ? (
+            <div className="space-y-3">
+              {/* HTML Preview */}
+              <div className="rounded-lg overflow-hidden border border-white/10 bg-white">
+                <iframe
+                  srcDoc={applyVariables(selectedTemplate.body_html)}
+                  className="w-full h-80 border-0"
+                  title="Email Preview"
+                />
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                This is how your email will appear to the recipient
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Enter your message here..."
+                rows={8}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 resize-none font-sans"
+              />
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <p className="text-xs text-amber-400">
+                  <strong>Note:</strong> The text above is for reference. The actual email will use the HTML template design with professional formatting.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Template info bar */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm text-gray-300">
+                Template: <span className="text-cyan-400 font-medium">{selectedTemplate.name}</span>
+              </span>
+              {selectedTemplate.category && (
+                <Badge className="bg-gray-500/20 text-gray-400 text-xs">{selectedTemplate.category}</Badge>
+              )}
+            </div>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setShowHtmlPreview(!showHtmlPreview)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 h-auto py-1"
+              onClick={clearTemplate}
+              className="text-xs text-gray-400 hover:text-white h-auto py-1"
             >
-              <Eye className="w-3 h-3 mr-1" />
-              {showHtmlPreview ? 'Edit' : 'Preview Email'}
+              <X className="w-3 h-3 mr-1" />
+              Remove
             </Button>
-          )}
-        </div>
-        
-        {showHtmlPreview && selectedTemplate ? (
-          <div className="rounded-lg overflow-hidden border border-white/10 bg-white">
-            <iframe
-              srcDoc={applyVariables(selectedTemplate.body_html)}
-              className="w-full h-72 border-0"
-              title="Email Preview"
-            />
           </div>
-        ) : (
+        </div>
+      ) : (
+        /* Custom message mode - no template */
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Message *</label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Enter your message here..."
-            rows={6}
+            rows={8}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 resize-none font-sans"
           />
-        )}
-      </div>
-
-      {/* Template indicator */}
-      {selectedTemplate && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm text-gray-300">
-              Using: <span className="text-cyan-400 font-medium">{selectedTemplate.name}</span>
-            </span>
-            {selectedTemplate.category && (
-              <Badge className="bg-gray-500/20 text-gray-400 text-xs">{selectedTemplate.category}</Badge>
-            )}
-          </div>
-          <p className="text-xs text-gray-500">Email will use the HTML template design</p>
+          <p className="text-xs text-gray-500 mt-2">
+            Your message will be sent with professional email formatting
+          </p>
         </div>
       )}
     </div>

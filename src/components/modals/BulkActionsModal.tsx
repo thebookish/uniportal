@@ -285,7 +285,6 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
                 studentName="{name}"
                 initialSubject={messageSubject}
                 initialBody={messageBody}
-                showPreview={false}
               />
               <p className="text-xs text-gray-400">
                 Use {'{name}'} for personalization - will be replaced with each student's name

@@ -308,7 +308,6 @@ export function CommunicationsView() {
               studentName="{name}"
               initialSubject={composeData.subject}
               initialBody={composeData.message}
-              showPreview={false}
             />
             
             <p className="text-xs text-gray-400">
