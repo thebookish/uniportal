@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { EmailTemplateSelector } from '@/components/emails/EmailTemplateSelector';
 
 export function CommunicationsView() {
   const { profile } = useAuth();
@@ -24,6 +25,7 @@ export function CommunicationsView() {
     scheduleTime: ''
   });
   const [sending, setSending] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   useEffect(() => {
     if (universityId) {
@@ -297,27 +299,22 @@ export function CommunicationsView() {
                 <option value="at_risk">At-Risk Students</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-              <Input
-                value={composeData.subject}
-                onChange={(e) => setComposeData({ ...composeData, subject: e.target.value })}
-                placeholder="Enter subject line..."
-                className="bg-white/5 border-white/10 text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Message <span className="text-gray-500">(Use {'{name}'} for personalization)</span>
-              </label>
-              <textarea
-                value={composeData.message}
-                onChange={(e) => setComposeData({ ...composeData, message: e.target.value })}
-                placeholder="Hi {name}, ..."
-                rows={5}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white resize-none"
-              />
-            </div>
+            
+            <EmailTemplateSelector
+              onSelect={(template, subject, body) => {
+                setSelectedTemplate(template);
+                setComposeData({ ...composeData, subject, message: body });
+              }}
+              studentName="{name}"
+              initialSubject={composeData.subject}
+              initialBody={composeData.message}
+              showPreview={false}
+            />
+            
+            <p className="text-xs text-gray-400">
+              Use {'{name}'} for personalization - will be replaced with each student's name
+            </p>
+            
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"

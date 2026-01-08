@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrograms } from '@/hooks/usePrograms';
 import { cn } from '@/lib/utils';
+import { EmailTemplateSelector } from '@/components/emails/EmailTemplateSelector';
 
 interface BulkActionsModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
   const [selectedCounselor, setSelectedCounselor] = useState('');
   const [counselors, setCounselors] = useState<any[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   if (!isOpen) return null;
 
@@ -274,27 +276,20 @@ export function BulkActionsModal({ isOpen, onClose, selectedStudents, onSuccess 
             </div>
           ) : action === 'send_message' ? (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-                <Input
-                  value={messageSubject}
-                  onChange={(e) => setMessageSubject(e.target.value)}
-                  placeholder="Enter subject..."
-                  className="bg-white/5 border-white/10 text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Message <span className="text-gray-500">(Use {'{name}'} for personalization)</span>
-                </label>
-                <textarea
-                  value={messageBody}
-                  onChange={(e) => setMessageBody(e.target.value)}
-                  placeholder="Hi {name}, ..."
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white resize-none"
-                />
-              </div>
+              <EmailTemplateSelector
+                onSelect={(template, subject, body) => {
+                  setSelectedTemplate(template);
+                  setMessageSubject(subject);
+                  setMessageBody(body);
+                }}
+                studentName="{name}"
+                initialSubject={messageSubject}
+                initialBody={messageBody}
+                showPreview={false}
+              />
+              <p className="text-xs text-gray-400">
+                Use {'{name}'} for personalization - will be replaced with each student's name
+              </p>
               <div className="flex items-center gap-3">
                 <Button variant="outline" onClick={() => setAction('')} className="flex-1 border-white/10">
                   Back

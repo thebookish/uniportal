@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ObligationsPanel } from './ObligationsPanel';
 import { DocumentRequestModal } from '@/components/documents/DocumentRequestModal';
+import { EmailTemplateSelector } from '@/components/emails/EmailTemplateSelector';
 
 interface StudentDetailPanelProps {
   studentId: string;
@@ -37,6 +38,15 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
   
   // Document request modal state
   const [showDocRequestModal, setShowDocRequestModal] = useState(false);
+  
+  // Email composition state
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<any>(null);
+  
+  // Show email compose modal
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailPurpose, setEmailPurpose] = useState<'message' | 'meeting' | 'intervention' | 'reminder' | 'offer'>('message');
 
   useEffect(() => {
     fetchStudent();
@@ -85,22 +95,55 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
     fetchStudent();
   }
 
-  async function sendMessage() {
+  function openEmailModal(purpose: 'message' | 'meeting' | 'intervention' | 'reminder' | 'offer') {
+    setEmailPurpose(purpose);
+    setSelectedEmailTemplate(null);
+    
+    // Set default subject/body based on purpose
+    switch (purpose) {
+      case 'message':
+        setEmailSubject('Check-in from us');
+        setEmailBody(`Hi ${student?.name},\n\nWe wanted to check in and see how you're doing. If you have any questions or need support, please don't hesitate to reach out.\n\nBest regards`);
+        break;
+      case 'meeting':
+        setEmailSubject('Meeting Invitation');
+        setEmailBody(`Hi ${student?.name},\n\nWe would like to schedule a meeting with you to discuss your progress.\n\nPlease let us know your availability.\n\nBest regards`);
+        break;
+      case 'intervention':
+        setEmailSubject('Support Available - We\'re Here to Help');
+        setEmailBody(`Hi ${student?.name},\n\nWe noticed you might benefit from some additional support. Our team is here to help you succeed.\n\nWould you be available for a quick call this week?\n\nBest regards`);
+        break;
+      case 'reminder':
+        setEmailSubject('Friendly Reminder');
+        setEmailBody(`Hi ${student?.name},\n\nThis is a friendly reminder about your upcoming deadlines.\n\nPlease let us know if you need any assistance.\n\nBest regards`);
+        break;
+      case 'offer':
+        setEmailSubject('Offer Letter - Congratulations!');
+        setEmailBody(`Dear ${student?.name},\n\nCongratulations! We are pleased to offer you admission to our program.\n\nPlease review the attached offer letter and respond at your earliest convenience.\n\nBest regards`);
+        break;
+    }
+    
+    setShowEmailModal(true);
+  }
+
+  async function sendEmailWithTemplate() {
     if (!universityId || !student?.email) {
       alert('Student email not available');
       return;
     }
+    if (!emailSubject || !emailBody) {
+      alert('Please enter subject and message');
+      return;
+    }
+    
     setSendingMessage(true);
     try {
-      const subject = 'Check-in from WorldLynk';
-      const message = `Hi ${student.name}, we wanted to check in and see how you're doing. If you have any questions or need support, please don't hesitate to reach out.`;
-      
       // Insert communication record
       await supabase.from('communications').insert({
         student_id: studentId,
         type: 'email',
-        subject,
-        message,
+        subject: emailSubject,
+        message: emailBody,
         status: 'sent',
         university_id: universityId
       });
@@ -110,17 +153,19 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
         body: {
           to: student.email,
           toName: student.name,
-          subject,
-          message,
+          subject: emailSubject,
+          message: emailBody,
           studentId,
-          universityId
+          universityId,
+          templateId: selectedEmailTemplate?.id
         }
       });
 
-      alert('Message sent successfully!');
+      setShowEmailModal(false);
+      alert('Email sent successfully!');
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Message recorded but email delivery may have failed');
+      console.error('Error sending email:', error);
+      alert('Email recorded but delivery may have failed');
     } finally {
       setSendingMessage(false);
     }
@@ -622,36 +667,33 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap">
             <Button 
-              onClick={sendMessage} 
-              disabled={sendingMessage}
+              onClick={() => openEmailModal('message')} 
               className="w-full sm:flex-1 bg-orange-500 hover:bg-orange-600 text-white"
             >
-              {sendingMessage ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
-              ) : (
-                <><Send className="w-4 h-4 mr-2" />Send Message</>
-              )}
+              <Send className="w-4 h-4 mr-2" />Send Message
             </Button>
             <Button 
-              onClick={openMeetingModal} 
+              onClick={() => openEmailModal('meeting')} 
               variant="outline" 
               className="w-full sm:flex-1 border-white/10 hover:bg-white/5"
             >
               <Calendar className="w-4 h-4 mr-2" />Schedule Meeting
             </Button>
+            <Button 
+              onClick={() => openEmailModal('reminder')} 
+              variant="outline" 
+              className="w-full sm:flex-1 border-white/10 hover:bg-white/5"
+            >
+              <Clock className="w-4 h-4 mr-2" />Send Reminder
+            </Button>
             {student?.risk_score >= 50 && (
               <Button 
-                onClick={initiateIntervention} 
-                disabled={initiatingIntervention}
+                onClick={() => openEmailModal('intervention')} 
                 className="w-full sm:flex-1 bg-red-500 hover:bg-red-600 text-white"
               >
-                {initiatingIntervention ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Initiating...</>
-                ) : (
-                  <><AlertTriangle className="w-4 h-4 mr-2" />Initiate Intervention</>
-                )}
+                <AlertTriangle className="w-4 h-4 mr-2" />Initiate Intervention
               </Button>
             )}
           </div>
@@ -751,6 +793,60 @@ export function StudentDetailPanel({ studentId, onClose }: StudentDetailPanelPro
             setShowDocRequestModal(false);
           }}
         />
+      )}
+
+      {/* Email Compose Modal */}
+      {showEmailModal && student && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  {emailPurpose === 'message' && 'Send Message'}
+                  {emailPurpose === 'meeting' && 'Schedule Meeting'}
+                  {emailPurpose === 'intervention' && 'Initiate Intervention'}
+                  {emailPurpose === 'reminder' && 'Send Reminder'}
+                  {emailPurpose === 'offer' && 'Send Offer'}
+                </h2>
+                <p className="text-sm text-gray-400">to {student.name} ({student.email})</p>
+              </div>
+              <button onClick={() => setShowEmailModal(false)} className="p-2 hover:bg-white/5 rounded-lg">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <EmailTemplateSelector
+                onSelect={(template, subject, body) => {
+                  setSelectedEmailTemplate(template);
+                  setEmailSubject(subject);
+                  setEmailBody(body);
+                }}
+                studentName={student.name}
+                programName={student.programs?.name}
+                initialSubject={emailSubject}
+                initialBody={emailBody}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/10 flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowEmailModal(false)} className="border-white/10 hover:bg-white/5">
+                Cancel
+              </Button>
+              <Button
+                onClick={sendEmailWithTemplate}
+                disabled={sendingMessage || !emailSubject || !emailBody}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {sendingMessage ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+                ) : (
+                  <><Send className="w-4 h-4 mr-2" />Send Email</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

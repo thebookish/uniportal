@@ -176,6 +176,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Clean up HTML to prevent Quoted-Printable encoding issues (=20)
+    // Remove excessive whitespace and ensure proper line breaks
+    emailHtml = emailHtml
+      .replace(/[\t]+/g, '') // Remove tabs
+      .replace(/  +/g, ' ') // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, '\n') // Remove empty lines
+      .replace(/>\s+</g, '><') // Remove whitespace between tags
+      .trim();
+
     let emailSent = false;
     let emailError = null;
 

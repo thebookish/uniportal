@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useStudents } from '@/hooks/useStudents';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Filter, Star, FileText, Send, CheckCircle, XCircle, Loader2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
+import { Search, Filter, Star, FileText, Send, CheckCircle, XCircle, Loader2, Sparkles, Clock, AlertTriangle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { EmailTemplateSelector } from '@/components/emails/EmailTemplateSelector';
 
 interface AdmissionsViewProps {
   onStudentClick: (studentId: string) => void;
@@ -21,6 +22,15 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { students, loading, refetch } = useStudents();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailModalPurpose, setEmailModalPurpose] = useState<'offer' | 'document_request'>('offer');
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const leads = students.filter(s => s.stage === 'lead');
   const applications = students.filter(s => s.stage === 'application');
@@ -33,45 +43,74 @@ export function AdmissionsView({ onStudentClick }: AdmissionsViewProps) {
     student.email.toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => (b.quality_score || 50) - (a.quality_score || 50));
 
-  async function issueOffer(studentId: string) {
-    if (!universityId) return;
-    setActionLoading(studentId);
-    try {
-      const student = students.find(s => s.id === studentId);
-      const subject = 'Congratulations! Your Offer Letter';
-      const message = `Dear ${student?.name || 'Student'},\n\nWe are pleased to inform you that you have been accepted to our institution!\n\nPlease log in to your portal to view your offer details and next steps.\n\nBest regards,\nAdmissions Team`;
+  function openOfferModal(studentId: string) {
+    const student = students.find(s => s.id === studentId);
+    setSelectedStudent(student);
+    setEmailModalPurpose('offer');
+    setEmailSubject('Congratulations! Your Offer Letter');
+    setEmailBody(`Dear ${student?.name || 'Student'},\n\nWe are pleased to inform you that you have been accepted to our institution!\n\nPlease log in to your portal to view your offer details and next steps.\n\nBest regards,\nAdmissions Team`);
+    setShowEmailModal(true);
+  }
 
-      await supabase.from('students').update({ stage: 'offer' }).eq('id', studentId).eq('university_id', universityId);
+  function openDocumentRequestModal(studentId: string) {
+    const student = students.find(s => s.id === studentId);
+    setSelectedStudent(student);
+    setEmailModalPurpose('document_request');
+    setEmailSubject('Documents Required - Action Needed');
+    setEmailBody(`Dear ${student?.name || 'Student'},\n\nTo proceed with your application, please submit the following documents:\n\n• Academic Transcript\n• ID Document\n• English Proficiency Certificate\n\nPlease log in to your portal to upload these documents at your earliest convenience.\n\nBest regards,\nAdmissions Team`);
+    setShowEmailModal(true);
+  }
+
+  async function sendEmailAndExecuteAction() {
+    if (!universityId || !selectedStudent) return;
+    setSendingEmail(true);
+    
+    try {
+      if (emailModalPurpose === 'offer') {
+        // Update student stage to offer
+        await supabase.from('students').update({ stage: 'offer' }).eq('id', selectedStudent.id).eq('university_id', universityId);
+      } else if (emailModalPurpose === 'document_request') {
+        // Create document records
+        await supabase.from('documents').insert([
+          { student_id: selectedStudent.id, name: 'Transcript', status: 'pending', university_id: universityId },
+          { student_id: selectedStudent.id, name: 'ID Document', status: 'pending', university_id: universityId },
+          { student_id: selectedStudent.id, name: 'English Proficiency', status: 'pending', university_id: universityId }
+        ]);
+      }
+
+      // Record communication
       await supabase.from('communications').insert({
-        student_id: studentId,
+        student_id: selectedStudent.id,
         type: 'email',
-        subject,
-        message,
+        subject: emailSubject,
+        message: emailBody,
         status: 'sent',
         university_id: universityId
       });
 
       // Send actual email
-      if (student?.email) {
+      if (selectedStudent?.email) {
         await supabase.functions.invoke('supabase-functions-send-email', {
           body: {
-            to: student.email,
-            toName: student.name,
-            subject,
-            message,
-            studentId,
-            universityId
+            to: selectedStudent.email,
+            toName: selectedStudent.name,
+            subject: emailSubject,
+            message: emailBody,
+            studentId: selectedStudent.id,
+            universityId,
+            templateId: selectedTemplate?.id
           }
         });
       }
 
       refetch();
-      alert('Offer issued and email sent successfully!');
+      setShowEmailModal(false);
+      alert(emailModalPurpose === 'offer' ? 'Offer issued and email sent!' : 'Document request sent!');
     } catch (error) {
-      console.error('Error issuing offer:', error);
-      alert('Error issuing offer. Please try again.');
+      console.error('Error:', error);
+      alert('Error sending email. Please try again.');
     } finally {
-      setActionLoading(null);
+      setSendingEmail(false);
     }
   }
 
