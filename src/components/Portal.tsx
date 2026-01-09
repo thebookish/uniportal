@@ -23,6 +23,7 @@ import { NotificationsPanel } from './modals/NotificationsPanel';
 import { AddStudentModal } from './modals/AddStudentModal';
 import { AIChatbot } from './chat/AIChatbot';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAIAlerts } from '@/hooks/useAIAlerts';
 import { Settings } from 'lucide-react';
 
 export function Portal() {
@@ -32,6 +33,7 @@ export function Portal() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const { alerts } = useAIAlerts();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -47,6 +49,12 @@ export function Portal() {
   const handleAlertClick = (alertId: string, studentId?: string) => {
     if (studentId) {
       setSelectedStudentId(studentId);
+    } else {
+      // Find student ID from alert if not provided
+      const alert = alerts.find(a => a.id === alertId);
+      if (alert?.student_id) {
+        setSelectedStudentId(alert.student_id);
+      }
     }
     setNotificationsOpen(false);
   };
