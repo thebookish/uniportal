@@ -15,9 +15,10 @@ import { cn } from '@/lib/utils';
 interface DashboardViewProps {
   onAlertClick: (alertId: string) => void;
   onStudentClick?: (studentId: string) => void;
+  onViewChange?: (view: string) => void;
 }
 
-export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewProps) {
+export function DashboardView({ onAlertClick, onStudentClick, onViewChange }: DashboardViewProps) {
   const { metrics, loading: metricsLoading } = useMetrics();
   const { alerts, loading: alertsLoading } = useAIAlerts();
   const { programs, loading: programsLoading } = usePrograms();
@@ -45,7 +46,7 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
-      <InstitutionalRiskBanner />
+      <InstitutionalRiskBanner onViewDetails={() => onViewChange?.('student-success')} />
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -59,11 +60,19 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
         </div>
       </div>
 
-      {onStudentClick && <TopPriorityToday onStudentClick={onStudentClick} />}
+      {onStudentClick && (
+        <TopPriorityToday 
+          onStudentClick={onStudentClick} 
+          onViewAll={() => onViewChange?.('student-success')}
+        />
+      )}
 
       {/* Risk Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div className="glass-card p-4 border border-red-500/20">
+        <div 
+          className="glass-card p-4 border border-red-500/20 cursor-pointer hover:bg-white/5 transition-colors"
+          onClick={() => onViewChange?.('student-success')}
+        >
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             <span className="text-xs text-gray-400">Near Breach (7 days)</span>
@@ -72,7 +81,10 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
           <p className="text-xs text-gray-500 mt-1">Immediate action required</p>
         </div>
 
-        <div className="glass-card p-4 border border-amber-500/20">
+        <div 
+          className="glass-card p-4 border border-amber-500/20 cursor-pointer hover:bg-white/5 transition-colors"
+          onClick={() => onViewChange?.('student-success')}
+        >
           <div className="flex items-center gap-2 mb-2">
             <FileText className="w-4 h-4 text-amber-400" />
             <span className="text-xs text-gray-400">Unresolved Obligations</span>
@@ -81,7 +93,10 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
           <p className="text-xs text-gray-500 mt-1">Monitoring required</p>
         </div>
 
-        <div className="glass-card p-4 border border-blue-500/20">
+        <div 
+          className="glass-card p-4 border border-blue-500/20 cursor-pointer hover:bg-white/5 transition-colors"
+          onClick={() => onViewChange?.('ai-intelligence')}
+        >
           <div className="flex items-center gap-2 mb-2">
             <Shield className="w-4 h-4 text-blue-400" />
             <span className="text-xs text-gray-400">Active Interventions</span>
@@ -90,7 +105,10 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
           <p className="text-xs text-gray-500 mt-1">In progress</p>
         </div>
 
-        <div className="glass-card p-4 border border-green-500/20">
+        <div 
+          className="glass-card p-4 border border-green-500/20 cursor-pointer hover:bg-white/5 transition-colors"
+          onClick={() => onViewChange?.('reports')}
+        >
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-4 h-4 text-green-400" />
             <span className="text-xs text-gray-400">Avg Time to Resolution</span>
@@ -109,7 +127,10 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
               <Sparkles className="w-4 md:w-5 h-4 md:h-5 text-orange-400" />
               AI Intelligence Feed
             </h2>
-            <button className="text-xs md:text-sm text-orange-400 hover:text-orange-300 transition-colors">
+            <button 
+              onClick={() => onViewChange?.('ai-intelligence')}
+              className="text-xs md:text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
               View All →
             </button>
           </div>
@@ -143,10 +164,21 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
 
         {/* Risk Summary */}
         <div className="space-y-4">
-          <h2 className="text-lg md:text-xl font-bold text-white">Risk Summary</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg md:text-xl font-bold text-white">Risk Summary</h2>
+            <button 
+              onClick={() => onViewChange?.('student-success')}
+              className="text-xs md:text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              View All →
+            </button>
+          </div>
           
           <div className="glass-card p-4 md:p-6 space-y-4">
-            <div>
+            <div 
+              className="cursor-pointer hover:bg-white/5 -mx-2 px-2 py-1 rounded-lg transition-colors"
+              onClick={() => onViewChange?.('student-success')}
+            >
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs md:text-sm text-gray-400">Critical Risk Students</p>
                 {atRiskCount > 0 && (
@@ -159,7 +191,10 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
               <p className="text-xs text-gray-500 mt-1">Immediate intervention required</p>
             </div>
 
-            <div>
+            <div 
+              className="cursor-pointer hover:bg-white/5 -mx-2 px-2 py-1 rounded-lg transition-colors"
+              onClick={() => onViewChange?.('student-success')}
+            >
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs md:text-sm text-gray-400">Monitoring Required</p>
                 {lowEngagementCount > 0 && (
@@ -172,13 +207,19 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
               <p className="text-xs text-gray-500 mt-1">Engagement below threshold</p>
             </div>
 
-            <div>
+            <div 
+              className="cursor-pointer hover:bg-white/5 -mx-2 px-2 py-1 rounded-lg transition-colors"
+              onClick={() => onViewChange?.('student-success')}
+            >
               <p className="text-xs md:text-sm text-gray-400 mb-1">Compliance Breach (14 days)</p>
               <p className={cn("text-2xl md:text-3xl font-bold metric-number", studentsNearBreach14 > 0 ? "text-amber-400" : "text-white")}>{studentsNearBreach14}</p>
               <p className="text-xs text-gray-500 mt-1">Approaching deadline</p>
             </div>
 
-            <div>
+            <div 
+              className="cursor-pointer hover:bg-white/5 -mx-2 px-2 py-1 rounded-lg transition-colors"
+              onClick={() => onViewChange?.('ai-intelligence')}
+            >
               <p className="text-xs md:text-sm text-gray-400 mb-1">Active Alerts</p>
               <p className="text-2xl md:text-3xl font-bold metric-number text-orange-400">{alerts.filter(a => !a.read).length}</p>
               <p className="text-xs text-gray-500 mt-1">Unread AI notifications</p>
@@ -191,10 +232,22 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
             </div>
           ) : (
             <div className="glass-card p-4 md:p-6">
-              <h3 className="text-sm font-semibold text-white mb-4">Top Programs</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-white">Top Programs</h3>
+                <button 
+                  onClick={() => onViewChange?.('programs')}
+                  className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                >
+                  View All →
+                </button>
+              </div>
               <div className="space-y-3">
                 {programs.slice(0, 3).map((program) => (
-                  <div key={program.id}>
+                  <div 
+                    key={program.id}
+                    className="cursor-pointer hover:bg-white/5 -mx-2 px-2 py-1 rounded-lg transition-colors"
+                    onClick={() => onViewChange?.('programs')}
+                  >
                     <div className="flex items-center justify-between text-xs md:text-sm mb-1">
                       <span className="text-gray-300 truncate pr-2">{program.name}</span>
                       <span className="metric-number text-white whitespace-nowrap">
@@ -216,7 +269,13 @@ export function DashboardView({ onAlertClick, onStudentClick }: DashboardViewPro
       </div>
 
       {/* Lifecycle Funnel */}
-      <LifecycleFunnel />
+      <LifecycleFunnel 
+        onViewChange={onViewChange}
+        onStageClick={(stage) => {
+          // Navigate to students view with stage filter
+          onViewChange?.('students');
+        }}
+      />
     </div>
   );
 }

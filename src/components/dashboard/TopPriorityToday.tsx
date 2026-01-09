@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils';
 
 interface TopPriorityTodayProps {
   onStudentClick: (studentId: string) => void;
+  onViewAll?: () => void;
 }
 
-export function TopPriorityToday({ onStudentClick }: TopPriorityTodayProps) {
+export function TopPriorityToday({ onStudentClick, onViewAll }: TopPriorityTodayProps) {
   const { students } = useStudents();
 
   const priorityStudents = students
@@ -52,12 +53,22 @@ export function TopPriorityToday({ onStudentClick }: TopPriorityTodayProps) {
 
   return (
     <div className="glass-card p-4 md:p-6 mb-4 md:mb-6 border border-red-500/20">
-      <div className="flex items-center gap-2 mb-4">
-        <AlertTriangle className="w-5 h-5 text-red-400" />
-        <h2 className="text-lg font-bold text-white">Top Priority Today</h2>
-        <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-xs ml-2">
-          {priorityStudents.length} Urgent
-        </Badge>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-red-400" />
+          <h2 className="text-lg font-bold text-white">Top Priority Today</h2>
+          <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-xs ml-2">
+            {priorityStudents.length} Urgent
+          </Badge>
+        </div>
+        {onViewAll && (
+          <button 
+            onClick={onViewAll}
+            className="text-xs md:text-sm text-orange-400 hover:text-orange-300 transition-colors"
+          >
+            View All →
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">

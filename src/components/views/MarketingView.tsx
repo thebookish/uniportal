@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-export function MarketingView() {
+interface MarketingViewProps {
+  onViewChange?: (view: string) => void;
+}
+
+export function MarketingView({ onViewChange }: MarketingViewProps = {}) {
   const { students, loading: studentsLoading } = useStudents();
   const { programs, loading: programsLoading } = usePrograms();
   const { stages, loading: stagesLoading } = useLifecycleStats();
@@ -342,7 +346,12 @@ export function MarketingView() {
                 <>Funnel is performing well. Focus on increasing top-of-funnel leads.</>
               )}
             </p>
-            <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10 hover:bg-white/5"
+              onClick={() => onViewChange?.('reports')}
+            >
               View Details <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </div>

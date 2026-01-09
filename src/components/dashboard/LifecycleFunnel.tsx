@@ -1,7 +1,12 @@
 import { useLifecycleStats } from '@/hooks/useLifecycleStats';
 import { cn } from '@/lib/utils';
 
-export function LifecycleFunnel() {
+interface LifecycleFunnelProps {
+  onViewChange?: (view: string) => void;
+  onStageClick?: (stage: string) => void;
+}
+
+export function LifecycleFunnel({ onViewChange, onStageClick }: LifecycleFunnelProps) {
   const { stages, loading } = useLifecycleStats();
 
   if (loading || !stages || stages.length === 0) {
@@ -50,7 +55,10 @@ export function LifecycleFunnel() {
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-bold text-white">Student Lifecycle Funnel</h3>
-        <button className="text-sm text-orange-400 hover:text-orange-300 transition-colors">
+        <button 
+          onClick={() => onViewChange?.('reports')}
+          className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+        >
           View Details →
         </button>
       </div>
@@ -78,7 +86,10 @@ export function LifecycleFunnel() {
                 </div>
               </div>
               
-              <div className="relative h-8 bg-white/5 rounded-lg overflow-hidden group cursor-pointer hover:bg-white/10 transition-colors">
+              <div 
+                className="relative h-8 bg-white/5 rounded-lg overflow-hidden group cursor-pointer hover:bg-white/10 transition-colors"
+                onClick={() => onStageClick?.(stage.stage)}
+              >
                 <div
                   className={cn(
                     "h-full rounded-lg transition-all duration-1000 flex items-center px-3",

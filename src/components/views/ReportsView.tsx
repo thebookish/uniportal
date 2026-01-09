@@ -2,16 +2,24 @@ import { useState } from 'react';
 import { useStudents } from '@/hooks/useStudents';
 import { usePrograms } from '@/hooks/usePrograms';
 import { useLifecycleStats } from '@/hooks/useLifecycleStats';
-import { BarChart3, Download, FileText, TrendingDown, Users, Loader2, Calendar } from 'lucide-react';
+import { BarChart3, Download, FileText, TrendingDown, Users, Loader2, Calendar as CalendarIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths } from 'date-fns';
+import { DateRange } from 'react-day-picker';
 
 export function ReportsView() {
   const { students, loading: studentsLoading } = useStudents();
   const { programs, loading: programsLoading } = usePrograms();
   const { stages, loading: stagesLoading } = useLifecycleStats();
   const [selectedReport, setSelectedReport] = useState('funnel');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subMonths(new Date(), 3),
+    to: new Date()
+  });
 
   const loading = studentsLoading || programsLoading || stagesLoading;
 
@@ -74,11 +82,84 @@ export function ReportsView() {
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Reports (Growth)</h1>
           <p className="text-sm md:text-base text-gray-400">Conversion analytics and growth metrics</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="border-white/10 hover:bg-white/5">
-            <Calendar className="w-4 h-4 mr-2" />
-            Date Range
+        <div className="flex items-center gap-2 relative">
+          <Button 
+            variant="outline" 
+            className="border-white/10 hover:bg-white/5"
+            onClick={() => setShowDatePicker(!showDatePicker)}
+          >
+            <CalendarIcon className="w-4 h-4 mr-2" />
+            {dateRange?.from && dateRange?.to ? (
+              <span className="text-sm">
+                {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
+              </span>
+            ) : (
+              'Date Range'
+            )}
           </Button>
+          
+          {/* Date Picker Dropdown */}
+          {showDatePicker && (
+            <div className="absolute top-full right-0 mt-2 z-50 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-white">Select Date Range</span>
+                <button 
+                  onClick={() => setShowDatePicker(false)}
+                  className="p-1 hover:bg-white/5 rounded"
+                >
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  { label: 'Last 7 days', from: subDays(new Date(), 7), to: new Date() },
+                  { label: 'Last 30 days', from: subDays(new Date(), 30), to: new Date() },
+                  { label: 'Last 3 months', from: subMonths(new Date(), 3), to: new Date() },
+                  { label: 'This month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
+                  { label: 'This year', from: startOfYear(new Date()), to: new Date() },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      setDateRange({ from: preset.from, to: preset.to });
+                      setShowDatePicker(false);
+                    }}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-gray-300 hover:bg-white/10 transition-colors"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              
+              <CalendarPicker
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+                className="rounded-md border border-white/10"
+              />
+              
+              <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-white/10">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDatePicker(false)}
+                  className="border-white/10"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={() => setShowDatePicker(false)}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Apply
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <Button onClick={exportReport} className="bg-orange-500 hover:bg-orange-600 text-white">
             <Download className="w-4 h-4 mr-2" />
             Export

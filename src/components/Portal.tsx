@@ -58,7 +58,7 @@ export function Portal() {
   const renderView = () => {
     switch (activeView) {
       case 'dashboard':
-        return <DashboardView onAlertClick={(alertId) => handleAlertClick(alertId)} onStudentClick={handleStudentClick} />;
+        return <DashboardView onAlertClick={(alertId) => handleAlertClick(alertId)} onStudentClick={handleStudentClick} onViewChange={setActiveView} />;
       case 'students':
         return <StudentsView onStudentClick={handleStudentClick} />;
       case 'programs':

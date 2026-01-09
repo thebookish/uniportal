@@ -1,8 +1,12 @@
 import { useStudents } from '@/hooks/useStudents';
-import { AlertTriangle, Clock, Shield, TrendingDown } from 'lucide-react';
+import { AlertTriangle, Clock, Shield, TrendingDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function InstitutionalRiskBanner() {
+interface InstitutionalRiskBannerProps {
+  onViewDetails?: () => void;
+}
+
+export function InstitutionalRiskBanner({ onViewDetails }: InstitutionalRiskBannerProps = {}) {
   const { students } = useStudents();
 
   const highRisk = students.filter(s => s.risk_score >= 70).length;
@@ -57,6 +61,16 @@ export function InstitutionalRiskBanner() {
               Next predicted breach: <span className="font-bold">{nextBreachDays} days</span>
             </span>
           </div>
+
+          {onViewDetails && (
+            <button
+              onClick={onViewDetails}
+              className="flex items-center gap-1 text-xs md:text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              View Details
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
