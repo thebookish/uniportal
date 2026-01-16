@@ -107,6 +107,115 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance_records: {
+        Row: {
+          created_at: string | null
+          date: string
+          event_id: string | null
+          id: string
+          present: boolean
+          student_id: string
+          university_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          event_id?: string | null
+          id?: string
+          present: boolean
+          student_id: string
+          university_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          event_id?: string | null
+          id?: string
+          present?: boolean
+          student_id?: string
+          university_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_academic_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_viability_risk: {
+        Row: {
+          active: boolean | null
+          confidence: string
+          created_at: string | null
+          id: string
+          reasons: Json | null
+          recommendation: string | null
+          risk_type: string
+          student_id: string
+          university_id: string | null
+          updated_at: string | null
+          weeks_to_risk: number
+        }
+        Insert: {
+          active?: boolean | null
+          confidence: string
+          created_at?: string | null
+          id?: string
+          reasons?: Json | null
+          recommendation?: string | null
+          risk_type?: string
+          student_id: string
+          university_id?: string | null
+          updated_at?: string | null
+          weeks_to_risk: number
+        }
+        Update: {
+          active?: boolean | null
+          confidence?: string
+          created_at?: string | null
+          id?: string
+          reasons?: Json | null
+          recommendation?: string | null
+          risk_type?: string
+          student_id?: string
+          university_id?: string | null
+          updated_at?: string | null
+          weeks_to_risk?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_viability_risk_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_viability_risk_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_rules: {
         Row: {
           action_config: Json
@@ -160,6 +269,174 @@ export type Database = {
           },
           {
             foreignKeyName: "automation_rules_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_academic_events: {
+        Row: {
+          created_at: string | null
+          day_of_week: number | null
+          end_time: string
+          event_type: string
+          id: string
+          mandatory: boolean | null
+          start_time: string
+          student_id: string
+          title: string | null
+          university_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time: string
+          event_type: string
+          id?: string
+          mandatory?: boolean | null
+          start_time: string
+          student_id: string
+          title?: string | null
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time?: string
+          event_type?: string
+          id?: string
+          mandatory?: boolean | null
+          start_time?: string
+          student_id?: string
+          title?: string | null
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_academic_events_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_academic_events_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_conflicts: {
+        Row: {
+          conflict_type: string
+          created_at: string | null
+          day: string
+          details: string
+          id: string
+          resolved: boolean | null
+          severity: string
+          student_id: string
+          university_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          conflict_type: string
+          created_at?: string | null
+          day: string
+          details: string
+          id?: string
+          resolved?: boolean | null
+          severity: string
+          student_id: string
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          conflict_type?: string
+          created_at?: string | null
+          day?: string
+          details?: string
+          id?: string
+          resolved?: boolean | null
+          severity?: string
+          student_id?: string
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_conflicts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_conflicts_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_work_events: {
+        Row: {
+          created_at: string | null
+          day_of_week: number | null
+          end_time: string
+          event_type: string
+          id: string
+          recurring: boolean | null
+          start_time: string
+          student_id: string
+          title: string | null
+          university_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time: string
+          event_type: string
+          id?: string
+          recurring?: boolean | null
+          start_time: string
+          student_id: string
+          title?: string | null
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time?: string
+          event_type?: string
+          id?: string
+          recurring?: boolean | null
+          start_time?: string
+          student_id?: string
+          title?: string | null
+          university_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_work_events_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_work_events_university_id_fkey"
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"
@@ -880,6 +1157,63 @@ export type Database = {
           },
         ]
       }
+      student_calendar_summary: {
+        Row: {
+          created_at: string | null
+          free_time_blocks: Json | null
+          id: string
+          student_id: string
+          total_class_hours: number | null
+          total_mandatory_hours: number | null
+          total_work_hours: number | null
+          university_id: string | null
+          updated_at: string | null
+          week_start: string
+          weekly_calendar: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          free_time_blocks?: Json | null
+          id?: string
+          student_id: string
+          total_class_hours?: number | null
+          total_mandatory_hours?: number | null
+          total_work_hours?: number | null
+          university_id?: string | null
+          updated_at?: string | null
+          week_start: string
+          weekly_calendar?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          free_time_blocks?: Json | null
+          id?: string
+          student_id?: string
+          total_class_hours?: number | null
+          total_mandatory_hours?: number | null
+          total_work_hours?: number | null
+          university_id?: string | null
+          updated_at?: string | null
+          week_start?: string
+          weekly_calendar?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_calendar_summary_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_calendar_summary_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           counselor_id: string | null
@@ -1079,6 +1413,57 @@ export type Database = {
           },
           {
             foreignKeyName: "team_invitations_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      timetable_feasibility: {
+        Row: {
+          created_at: string | null
+          factors: Json | null
+          feasibility_score: number
+          id: string
+          score_band: string
+          student_id: string
+          university_id: string | null
+          updated_at: string | null
+          week_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          factors?: Json | null
+          feasibility_score: number
+          id?: string
+          score_band: string
+          student_id: string
+          university_id?: string | null
+          updated_at?: string | null
+          week_start: string
+        }
+        Update: {
+          created_at?: string | null
+          factors?: Json | null
+          feasibility_score?: number
+          id?: string
+          score_band?: string
+          student_id?: string
+          university_id?: string | null
+          updated_at?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timetable_feasibility_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timetable_feasibility_university_id_fkey"
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"

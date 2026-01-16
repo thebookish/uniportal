@@ -17,6 +17,7 @@ import { LeadInboxView } from './views/LeadInboxView';
 import { CourseFitView } from './views/CourseFitView';
 import { PlaceholderView } from './views/PlaceholderView';
 import { SettingsView } from './views/SettingsView';
+import { CalendarIntelligenceView } from './views/CalendarIntelligenceView';
 import { StudentDetailPanel } from './students/StudentDetailPanel';
 import { SearchModal } from './modals/SearchModal';
 import { NotificationsPanel } from './modals/NotificationsPanel';
@@ -93,6 +94,8 @@ export function Portal() {
         return <LeadInboxView onStudentClick={handleStudentClick} />;
       case 'course-fit':
         return <CourseFitView onStudentClick={handleStudentClick} />;
+      case 'calendar-intelligence':
+        return <CalendarIntelligenceView />;
       case 'settings':
         return <SettingsView />;
       default:

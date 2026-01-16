@@ -14,7 +14,8 @@ import {
   ClipboardList,
   Inbox,
   Target,
-  Link2
+  Link2,
+  CalendarClock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +31,7 @@ const allNavigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'admissions', 'student_success', 'academic_manager'] },
   { id: 'student-success', label: 'Risk & Intervention', icon: UserCheck, roles: ['super_admin', 'student_success', 'admissions'] },
   { id: 'ai-intelligence', label: 'Risk Intelligence', icon: Sparkles, roles: ['super_admin', 'admissions', 'student_success'] },
+  { id: 'calendar-intelligence', label: 'Calendar Intelligence', icon: CalendarClock, roles: ['super_admin', 'admissions', 'student_success', 'academic_manager'] },
   { id: 'admissions', label: 'Admissions', icon: FileText, roles: ['super_admin', 'admissions'] },
   { id: 'lead-inbox', label: 'Lead Inbox', icon: Inbox, roles: ['super_admin', 'admissions'] },
   { id: 'students', label: 'Student Registry', icon: Users, roles: ['super_admin', 'admissions', 'student_success', 'academic_manager'] },
